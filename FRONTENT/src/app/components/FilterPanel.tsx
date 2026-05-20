@@ -241,7 +241,7 @@ export function FilterPanel({
         {/* PREMIUM */}
         <div>
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-            <input
+            {/* <input
               type="checkbox"
               checked={filters.showPremiumOnly}
               onChange={(e) =>
@@ -251,11 +251,11 @@ export function FilterPanel({
                 )
               }
               className="w-5 h-5"
-            />
+            /> */}
 
-            <DollarSign className="w-4 h-4 text-amber-600" />
+            {/* <DollarSign className="w-4 h-4 text-amber-600" /> */}
 
-            <span>Premium Venues Only</span>
+            {/* <span>Premium Venues Only</span> */}
           </label>
         </div>
 

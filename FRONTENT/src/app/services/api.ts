@@ -22,60 +22,20 @@ export interface Venue {
   menu_type?: string;
 }
 
-
-
-
-
-
-
-
-
+// ======================
 // FETCH VENUES
-export async function fetchVenues(filters?: {
-  country?: string;
-  state?: string;
-  city?: string;
-  area?: string;
+// ======================
 
-  category?: string;
-
-  food_type?: string;
-  drink_type?: string;
-  menu_type?: string;
-
-  premium_only?: boolean;
-
-  page?: number;
-  limit?: number;
-
-  search?: string;
-}) {
+export async function fetchVenues(filters?: any) {
 
   const params = new URLSearchParams();
 
-  // LOCATION FILTERS
-  if (filters?.country) {
-    params.append("country", filters.country);
-  }
+  if (filters?.country) params.append("country", filters.country);
+  if (filters?.state) params.append("state", filters.state);
+  if (filters?.city) params.append("city", filters.city);
+  if (filters?.area) params.append("area", filters.area);
+  if (filters?.category) params.append("category", filters.category);
 
-  if (filters?.state) {
-    params.append("state", filters.state);
-  }
-
-  if (filters?.city) {
-    params.append("city", filters.city);
-  }
-
-  if (filters?.area) {
-    params.append("area", filters.area);
-  }
-
-  // CATEGORY
-  if (filters?.category) {
-    params.append("category", filters.category);
-  }
-
-  // EXTRA FILTERS
   if (filters?.food_type) {
     params.append("food_type", filters.food_type);
   }
@@ -88,29 +48,16 @@ export async function fetchVenues(filters?: {
     params.append("menu_type", filters.menu_type);
   }
 
-  if (filters?.premium_only) {
-    params.append("premium_only", "true");
-  }
-
-  // SEARCH
   if (filters?.search) {
     params.append("search", filters.search);
   }
 
-  // PAGINATION
-  if (filters?.page) {
-    params.append("page", filters.page.toString());
-  }
+  params.append("page", String(filters?.page || 1));
+  params.append("limit", String(filters?.limit || 50));
 
-  if (filters?.limit) {
-    params.append("limit", filters.limit.toString());
-  }
-
-  const url = `${API_BASE_URL}/venues?${params.toString()}`;
-
-  console.log("API URL:", url);
-
-  const response = await fetch(url);
+  const response = await fetch(
+    `${API_BASE_URL}/venues?${params.toString()}`
+  );
 
   if (!response.ok) {
     throw new Error("Failed to fetch venues");
@@ -119,22 +66,17 @@ export async function fetchVenues(filters?: {
   return response.json();
 }
 
-
-
-
-
-
-
-
-
+// ======================
 // CREATE REVIEW
+// ======================
+
 export const createReview = async (formData: FormData) => {
 
   const response = await fetch(
     `${API_BASE_URL}/reviews`,
     {
       method: "POST",
-      body: formData
+      body: formData,
     }
   );
 
@@ -145,15 +87,10 @@ export const createReview = async (formData: FormData) => {
   return response.json();
 };
 
-
-
-
-
-
-
-
-
+// ======================
 // FETCH REVIEWS
+// ======================
+
 export const fetchReviews = async (venueId: number) => {
 
   const response = await fetch(
@@ -162,6 +99,34 @@ export const fetchReviews = async (venueId: number) => {
 
   if (!response.ok) {
     throw new Error("Failed to fetch reviews");
+  }
+
+  return response.json();
+};
+
+// ======================
+// CHATBOT
+// ======================
+
+export const sendChatMessage = async (message: string) => {
+
+  const response = await fetch(
+    `${API_BASE_URL}/chat`,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+      },
+
+      body: JSON.stringify({
+        message,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to send message");
   }
 
   return response.json();

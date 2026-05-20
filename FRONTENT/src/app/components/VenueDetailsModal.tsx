@@ -28,6 +28,12 @@ interface VenueDetailsModalProps {
 }
 
 export function VenueDetailsModal({ isOpen, onClose, venue }: VenueDetailsModalProps) {
+ 
+    const handleReservation = () => {
+
+  alert(`Reservation request sent for ${venue.name}`);
+
+};
   // const [reviews, setReviews] = useState<any[]>([]);
 //   useEffect(() => {
 

@@ -431,12 +431,12 @@ console.log("TOTAL VENUES:", data.length);
     foodType: '',
     drinkType: '',
     menuType: '',
-    showPremiumOnly: false
+    // showPremiumOnly: true
   }));
 
   setCurrentPage(1);
 
-  loadVenues();
+  // loadVenues();
 };
 
   return (

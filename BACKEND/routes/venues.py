@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
+
 from database import SessionLocal
 from models.venue import Venue
 
@@ -98,7 +99,9 @@ def get_venues(
     )
         
     if category:
-        query = query.filter(Venue.category == category)
+        query = query.filter(
+        func.lower(Venue.category) == category.lower()
+    )
 
     if food_type:
         query = query.filter(Venue.food_type == food_type)
