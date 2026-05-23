@@ -20,6 +20,8 @@ export interface Venue {
   food_type?: string;
   drink_type?: string;
   menu_type?: string;
+
+  is_premium?: boolean;
 }
 
 // ======================
@@ -30,11 +32,25 @@ export async function fetchVenues(filters?: any) {
 
   const params = new URLSearchParams();
 
-  if (filters?.country) params.append("country", filters.country);
-  if (filters?.state) params.append("state", filters.state);
-  if (filters?.city) params.append("city", filters.city);
-  if (filters?.area) params.append("area", filters.area);
-  if (filters?.category) params.append("category", filters.category);
+  if (filters?.country) {
+    params.append("country", filters.country);
+  }
+
+  if (filters?.state) {
+    params.append("state", filters.state);
+  }
+
+  if (filters?.city) {
+    params.append("city", filters.city);
+  }
+
+  if (filters?.area) {
+    params.append("area", filters.area);
+  }
+
+  if (filters?.category) {
+    params.append("category", filters.category);
+  }
 
   if (filters?.food_type) {
     params.append("food_type", filters.food_type);
@@ -50,6 +66,10 @@ export async function fetchVenues(filters?: any) {
 
   if (filters?.search) {
     params.append("search", filters.search);
+  }
+
+  if (filters?.premium_only) {
+    params.append("premium_only", "true");
   }
 
   params.append("page", String(filters?.page || 1));
@@ -131,3 +151,4 @@ export const sendChatMessage = async (message: string) => {
 
   return response.json();
 };
+

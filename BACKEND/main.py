@@ -13,7 +13,6 @@ from models import Review
 from routes.venues import router as venues_router
 from models.venue import Venue
 
-
 import uuid
 import os
 
@@ -62,13 +61,7 @@ app.mount(
 app.include_router(venues_router)
 
 # =========================
-# OPENAI
-# =========================
-
-
-
-# =========================
-# CHAT MODEL
+# CHAT REQUEST MODEL
 # =========================
 
 class ChatRequest(BaseModel):
@@ -83,13 +76,6 @@ def home():
     return {
         "message": "Backend is running"
     }
-
-# =========================
-# CHAT ENDPOINT
-# =========================
-
-
-   
 
 # =========================
 # GET REVIEWS
@@ -166,17 +152,21 @@ async def create_review(
         "message": "Review added successfully"
     }
 
+# =========================
+# CHATBOT
+# =========================
+
 @app.post("/chat")
 async def ai_chat(
-    payload: dict,
+    payload: ChatRequest,
     db: Session = Depends(get_db)
 ):
 
-    message = payload.get("message", "").lower().strip()
+    message = payload.message.lower().strip()
 
-    # -------------------------
-    # GREETING HANDLING
-    # -------------------------
+    # =========================
+    # GREETINGS
+    # =========================
 
     greetings = [
         "hi",
@@ -192,201 +182,339 @@ async def ai_chat(
         return {
             "reply": (
                 "👋 Hi! I'm your AI venue assistant.\n\n"
-                "You can ask me things like:\n"
-                "• Vegetarian restaurants in Chennai\n"
+                "Try asking:\n"
+                "• Vegetarian restaurants in Bangkok\n"
                 "• Bars in Mumbai\n"
-                "• Rooftop cafes in Bangalore\n"
-                "• Premium restaurants near Bandra"
+                "• Pubs in Chennai\n"
+                "• Cafes in Bangalore\n"
+                "• Premium bars in Chennai\n"
+                "• Cocktail bars in Bangkok"
             )
         }
 
     query = db.query(Venue)
 
-    # -------------------------
-    # CITY DETECTION
-    # -------------------------
+    # =========================
+    # CATEGORY DETECTION
+    # =========================
 
-    cities = [
-        "chennai",
+    category_keywords = {
+        "bar": ["bar", "bars"],
+        "pub": ["pub", "pubs"],
+        "restaurant": ["restaurant", "restaurants"],
+        "cafe": ["cafe", "cafes", "coffee"],
+        "lounge": ["lounge", "lounges"],
+        "club": ["club", "clubs"]
+    }
+
+    detected_category = None
+
+    for category, words in category_keywords.items():
+
+        if any(word in message for word in words):
+            detected_category = category
+            break
+
+    # =========================
+    # VEG / NONVEG
+    # =========================
+
+    veg_search = any(word in message for word in [
+        "veg",
+        "vegetarian",
+        "pure veg"
+    ])
+
+    nonveg_search = any(word in message for word in [
+        "non veg",
+        "nonveg",
+        "chicken",
+        "biryani",
+        "bbq",
+        "grill"
+    ])
+
+    # =========================
+    # PREMIUM
+    # =========================
+
+    premium_only = "premium" in message
+
+    # =========================
+    # CITY FILTER
+    # =========================
+
+    known_cities = [
+        "bangkok",
         "mumbai",
+        "chennai",
         "bangalore",
         "kochi",
         "delhi",
         "hyderabad",
-        "pune"
+        "pune",
+        "kolkata"
     ]
 
     detected_city = None
 
-    for city in cities:
+    for city in known_cities:
+
         if city in message:
             detected_city = city
             break
 
     if detected_city:
+
         query = query.filter(
             Venue.city.ilike(f"%{detected_city}%")
         )
 
-    # -------------------------
-    # AREA DETECTION
-    # -------------------------
+    # =========================
+    # AREA FILTER
+    # =========================
 
-    areas = [
+    known_areas = [
+        "sukhumvit",
+        "powai",
         "royapuram",
         "bandra",
         "juhu",
         "andheri",
         "adyar",
         "koramangala",
-        "fort kochi"
+        "fort kochi",
+        "t nagar",
+        "velachery",
+        "indiranagar",
+        "sathorn"
     ]
 
     detected_area = None
 
-    for area in areas:
+    for area in known_areas:
+
         if area in message:
             detected_area = area
             break
 
     if detected_area:
-        query = query.filter(
-            Venue.area.ilike(f"%{detected_area}%")
-        )
-
-    # -------------------------
-    # VEG FILTER
-    # -------------------------
-
-    if "vegetarian" in message or "veg" in message:
 
         query = query.filter(
-            (
-                Venue.category.ilike("%veg%")
-            ) |
-            (
-                Venue.food_type.ilike("%veg%")
-            ) |
-            (
-                Venue.name.ilike("%veg%")
-            )
-        )
-        # -------------------------
-        # NON VEG FILTER
-        # -------------------------
-
-    elif (
-        "non veg" in message
-        or "nonveg" in message
-        or "chicken" in message
-        or "biryani" in message
-        or "grill" in message
-        or "bbq" in message
-    ):
-
-        query = query.filter(
-            (
-                Venue.food_type.ilike("%non%")
-            ) |
-            (
-                Venue.food_type.ilike("%chicken%")
-            ) |
-            (
-                Venue.food_type.ilike("%biryani%")
-            ) |
-            (
-                Venue.food_type.ilike("%bbq%")
-            ) |
-            (
-                Venue.food_type.ilike("%grill%")
-            ) |
-            (
-                Venue.category.ilike("%non%")
+            or_(
+                Venue.area.ilike(f"%{detected_area}%"),
+                Venue.address.ilike(f"%{detected_area}%")
             )
         )
 
-    # -------------------------
-    # PUB / BAR FILTER
-    # -------------------------
+    # =========================
+    # FLEXIBLE CATEGORY FILTER
+    # =========================
 
-    if (
-        "pub" in message
-        or "bar" in message
-        or "nightclub" in message
-        or "club" in message
-    ):
+    if detected_category == "bar":
+
+        query = query.filter(
+            or_(
+                Venue.category.ilike("%bar%"),
+                Venue.category.ilike("%pub%"),
+                Venue.category.ilike("%lounge%"),
+                Venue.name.ilike("%bar%")
+            )
+        )
+
+    elif detected_category == "pub":
 
         query = query.filter(
             or_(
                 Venue.category.ilike("%pub%"),
-                Venue.category.ilike("%bar%"),
-                Venue.category.ilike("%club%"),
-                Venue.name.ilike("%pub%"),
-                Venue.name.ilike("%bar%")
+                Venue.category.ilike("%bar%")
             )
         )
-    # -------------------------
-    # HOTEL / RESTAURANT FILTER
-    # -------------------------
 
-    elif (
-        "restaurant" in message
-        or "hotel" in message
-        or "cafe" in message
+    elif detected_category == "restaurant":
+
+        query = query.filter(
+            or_(
+                Venue.category.ilike("%restaurant%"),
+                Venue.category.ilike("%hotel%"),
+                Venue.category.ilike("%dining%")
+            )
+        )
+
+    elif detected_category == "cafe":
+
+        query = query.filter(
+            Venue.category.ilike("%cafe%")
+        )
+
+    # =========================
+    # VEG FILTER
+    # =========================
+
+    if veg_search:
+
+        query = query.filter(
+            Venue.food_type.ilike("%veg%")
+        )
+
+        query = query.filter(
+            ~Venue.food_type.ilike("%non%")
+        )
+
+    # =========================
+    # NONVEG FILTER
+    # =========================
+
+    if nonveg_search:
+
+        query = query.filter(
+            or_(
+                Venue.food_type.ilike("%non%"),
+                Venue.food_type.ilike("%chicken%"),
+                Venue.food_type.ilike("%bbq%"),
+                Venue.food_type.ilike("%grill%"),
+                Venue.food_type.ilike("%biryani%")
+            )
+        )
+
+    # =========================
+    # COCKTAIL FILTER
+    # =========================
+
+    if "cocktail" in message or "cocktails" in message:
+
+        query = query.filter(
+            or_(
+                Venue.drink_type.ilike("%cocktail%"),
+                Venue.deal.ilike("%cocktail%")
+            )
+        )
+
+    # =========================
+    # BUY ONE GET ONE FILTER
+    # =========================
+
+    if (
+        "buy one get one" in message
+        or "buy 1 get 1" in message
+        or "bogo" in message
     ):
 
         query = query.filter(
-            (
-                Venue.category.ilike("%restaurant%")
-            ) |
-            (
-                Venue.category.ilike("%hotel%")
-            ) |
-            (
-                Venue.category.ilike("%cafe%")
+            or_(
+                Venue.deal.ilike("%buy%"),
+                Venue.deal.ilike("%1+1%"),
+                Venue.deal.ilike("%free%")
             )
         )
 
-    # -------------------------
-    # GET RESULTS
-    # -------------------------
+    # =========================
+    # PREMIUM FILTER
+    # =========================
 
-    venues = query.limit(5).all()
+    if premium_only:
+
+        query = query.filter(
+            Venue.is_premium == True
+        )
+
+    # =========================
+    # SORTING
+    # =========================
+
+    if "best" in message or "top" in message:
+
+        query = query.order_by(
+            Venue.rating.desc()
+        )
+
+    else:
+
+        query = query.order_by(
+            Venue.id.desc()
+        )
+
+    # =========================
+    # FETCH RESULTS
+    # =========================
+
+    venues = query.limit(10).all()
+
+    # =========================
+    # NO RESULTS
+    # =========================
 
     if not venues:
 
         return {
             "reply": (
                 "😔 Sorry, I couldn't find matching venues.\n\n"
-                "Try searching like:\n"
-                "• Veg restaurants in Chennai\n"
+                "Try searches like:\n"
+                "• Vegetarian restaurants in Bangkok\n"
                 "• Bars in Mumbai\n"
+                "• Cocktail bars in Chennai\n"
                 "• Cafes in Bangalore"
             )
         }
 
-    # -------------------------
+    # =========================
     # FORMAT RESPONSE
-    # -------------------------
+    # =========================
 
-    response_text = "🍽️ Here are some places I found:\n\n"
+    response = "🍽️ Here are some places I found:\n\n"
 
     for idx, venue in enumerate(venues, start=1):
 
-        response_text += (
-            f"{idx}. {venue.name}\n"
-            f"📍 {venue.area or 'Area not available'}, "
-            f"{venue.city or 'City not available'}\n"
-        )
+        response += f"{idx}. {venue.name}\n"
 
-        if venue.category:
-            response_text += f"🍴 {venue.category}\n"
+        location_parts = []
 
-        if venue.deal:
-            response_text += f"🔥 {venue.deal}\n"
+        # CLEAN AREA
+        if (
+            venue.area
+            and str(venue.area).lower() != "nan"
+            and str(venue.area).lower() != "none"
+        ):
+            location_parts.append(venue.area.strip())
 
-        response_text += "\n"
+        # CLEAN CITY
+        if (
+            venue.city
+            and str(venue.city).lower() != "nan"
+            and str(venue.city).lower() != "none"
+        ):
+            location_parts.append(venue.city.strip())
 
-    return {
-        "reply": response_text
-    }
+        # FALLBACK TO ADDRESS
+        if (
+            not location_parts
+            and venue.address
+            and str(venue.address).lower() != "nan"
+            and str(venue.address).lower() != "none"
+        ):
+            if location_parts:
+                response += f"📍 {', '.join(location_parts)}\n"
+            else:
+                response += "📍 Location unavailable\n"
+            location_parts.append(venue.address.strip())
+
+            if venue.category:
+                response += f"🍴 {venue.category}\n"
+
+            if venue.food_type:
+                response += f"🥗 {venue.food_type}\n"
+
+            if venue.drink_type:
+                response += f"🍹 {venue.drink_type}\n"
+
+            if venue.rating:location
+            response += f"⭐ {venue.rating}\n"
+
+            if venue.deal:
+                response += f"🔥 {venue.deal}\n"
+
+            response += "\n"
+
+        return {
+            "reply": response
+        }
