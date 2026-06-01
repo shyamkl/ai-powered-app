@@ -1,6 +1,19 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from models.review import Review
+import os
+import uuid
+
+from fastapi import (
+    UploadFile,
+    File,
+    HTTPException
+)
+
+
+
+from database import get_db
 
 
 from database import SessionLocal
@@ -136,36 +149,97 @@ def get_venues(
     print(str(query))
     venues = query.offset(offset).limit(limit).all()
 
+   
+
     result = []
 
     for v in venues:
+
+        reviews = (
+            db.query(Review)
+            .filter(Review.venue_id == v.id)
+            .all()
+        )
+
+        if reviews:
+                highest_rating = max(r.rating for r in reviews)
+                reviews_count = len(reviews)
+        else:
+                highest_rating = None
+                reviews_count = 0
+
         result.append({
-            "id": v.id,
-            "name": v.name,
+                "id": v.id,
+                "name": v.name,
 
-            "category": v.category,
+                "category": v.category,
 
-            "image_url": v.image_url,
+                "image_url": v.image_url,
+                "local_image": v.local_image,
 
-            "address": v.address,
+                "address": v.address,
 
-            "city": v.city,
-            "state": v.state,
-            "country": v.country,
+                "city": v.city,
+                "state": v.state,
+                "country": v.country,
 
-            "area": v.area,
+                "area": v.area,
 
-            "deal": v.deal,
-            "timing": v.timing,
-            "food_type": v.food_type,
-            "menu_type": v.menu_type,
-            "drink_type": v.drink_type,
-            "is_premium": v.is_premium,
-            "rating": v.rating,
-            "reviews_count": v.reviews_count,
-            "lat": v.lat,
-            "lon": v.lon
+                "deal": v.deal,
+                "timing": v.timing,
 
+                "food_type": v.food_type,
+                "menu_type": v.menu_type,
+                "drink_type": v.drink_type,
+
+                "is_premium": v.is_premium,
+
+                # REAL REVIEW DATA
+                "rating": highest_rating,
+                "reviews_count": reviews_count,
+
+                "lat": v.lat,
+                "lon": v.lon
         })
 
     return result
+
+@router.put("/venues/{venue_id}/image")
+async def update_venue_image(
+    venue_id: int,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+
+    venue = db.query(Venue).filter(
+        Venue.id == venue_id
+    ).first()
+
+    if not venue:
+        raise HTTPException(
+            status_code=404,
+            detail="Venue not found"
+        )
+
+    os.makedirs("uploads", exist_ok=True)
+
+    extension = image.filename.split(".")[-1]
+
+    filename = f"{uuid.uuid4()}.{extension}"
+
+    filepath = os.path.join("uploads", filename)
+
+    with open(filepath, "wb") as f:
+        f.write(await image.read())
+
+    # IMPORTANT
+    venue.local_image = f"/uploads/{filename}"
+    
+    db.commit()
+
+    db.refresh(venue)
+
+    return {
+        "message": "Image uploaded successfully",
+        "local_image": venue.local_image
+    }

@@ -6,4 +6,3 @@ import 'leaflet/dist/leaflet.css';
 // import 'leaflet/dist/leaflet.css';
 
 createRoot(document.getElementById("root")!).render(<App />);
-  

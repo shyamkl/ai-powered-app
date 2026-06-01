@@ -1,30 +1,31 @@
-from fastapi import FastAPI, Depends, Form, UploadFile, File
+from fastapi import FastAPI, Depends, Form, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
-
+from sqlalchemy import or_, and_
 from pydantic import BaseModel
 
-from database import Base, engine, get_db
+from database import Base, engine, SessionLocal
 from models import Review
+from models.venue import Venue
+from models.review import Review
+from models.favorite import Favorite
+from fastapi import UploadFile, File
 
 from routes.venues import router as venues_router
-from models.venue import Venue
 
 import uuid
 import os
 
-# =========================
-# APP SETUP
-# =========================
+# ======================================================
+# APP
+# ======================================================
 
 app = FastAPI()
 
-# =========================
+# ======================================================
 # CORS
-# =========================
+# ======================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,15 +37,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# =========================
+# ======================================================
 # DATABASE
-# =========================
+# ======================================================
 
 Base.metadata.create_all(bind=engine)
 
-# =========================
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# ======================================================
 # UPLOADS
-# =========================
+# ======================================================
 
 os.makedirs("uploads", exist_ok=True)
 
@@ -54,22 +62,25 @@ app.mount(
     name="uploads"
 )
 
-# =========================
+# ======================================================
 # ROUTERS
-# =========================
+# ======================================================
 
 app.include_router(venues_router)
 
-# =========================
-# CHAT REQUEST MODEL
-# =========================
+# ======================================================
+# REQUEST MODELS
+# ======================================================
 
 class ChatRequest(BaseModel):
     message: str
 
-# =========================
+class FavoriteRequest(BaseModel):
+    venue_id: int
+
+# ======================================================
 # HOME
-# =========================
+# ======================================================
 
 @app.get("/")
 def home():
@@ -77,9 +88,9 @@ def home():
         "message": "Backend is running"
     }
 
-# =========================
-# GET REVIEWS
-# =========================
+# ======================================================
+# REVIEWS
+# ======================================================
 
 @app.get("/reviews/{venue_id}")
 def get_reviews(
@@ -94,22 +105,7 @@ def get_reviews(
         .all()
     )
 
-    return [
-        {
-            "id": r.id,
-            "venue_id": r.venue_id,
-            "user_name": r.user_name,
-            "rating": r.rating,
-            "comment": r.comment,
-            "image_url": r.image_url,
-            "created_at": r.created_at
-        }
-        for r in reviews
-    ]
-
-# =========================
-# CREATE REVIEW
-# =========================
+    return reviews
 
 @app.post("/reviews")
 async def create_review(
@@ -143,18 +139,70 @@ async def create_review(
     )
 
     db.add(review)
-
     db.commit()
-
     db.refresh(review)
 
     return {
         "message": "Review added successfully"
     }
 
+# ======================================================
+# FAVORITES
+# ======================================================
+
+@app.post("/favorites")
+def toggle_favorite(
+    data: FavoriteRequest,
+    db: Session = Depends(get_db)
+):
+
+    existing = db.query(Favorite).filter(
+        Favorite.venue_id == data.venue_id
+    ).first()
+
+    # REMOVE FAVORITE
+    if existing:
+
+        db.delete(existing)
+        db.commit()
+
+        return {
+            "message": "Favorite removed",
+            "favorited": False
+        }
+
+    # ADD FAVORITE
+    favorite = Favorite(
+        venue_id=data.venue_id
+    )
+
+    db.add(favorite)
+    db.commit()
+
+    return {
+        "message": "Favorite added",
+        "favorited": True
+    }
+
+@app.get("/favorites")
+def get_favorites(
+    db: Session = Depends(get_db)
+):
+
+    favorites = db.query(Favorite).all()
+
+    return [
+        fav.venue_id
+        for fav in favorites
+    ]
+
 # =========================
 # CHATBOT
 # =========================
+
+class ChatRequest(BaseModel):
+    message: str
+
 
 @app.post("/chat")
 async def ai_chat(
@@ -164,184 +212,37 @@ async def ai_chat(
 
     message = payload.message.lower().strip()
 
-    # =========================
-    # GREETINGS
-    # =========================
-
-    greetings = [
-        "hi",
-        "hello",
-        "hey",
-        "hii",
-        "good morning",
-        "good evening"
-    ]
-
-    if message in greetings:
-
-        return {
-            "reply": (
-                "👋 Hi! I'm your AI venue assistant.\n\n"
-                "Try asking:\n"
-                "• Vegetarian restaurants in Bangkok\n"
-                "• Bars in Mumbai\n"
-                "• Pubs in Chennai\n"
-                "• Cafes in Bangalore\n"
-                "• Premium bars in Chennai\n"
-                "• Cocktail bars in Bangkok"
-            )
-        }
-
     query = db.query(Venue)
+
+    # =========================
+    # TOKENIZE USER MESSAGE
+    # =========================
+
+    words = message.split()
 
     # =========================
     # CATEGORY DETECTION
     # =========================
 
-    category_keywords = {
-        "bar": ["bar", "bars"],
-        "pub": ["pub", "pubs"],
-        "restaurant": ["restaurant", "restaurants"],
-        "cafe": ["cafe", "cafes", "coffee"],
-        "lounge": ["lounge", "lounges"],
-        "club": ["club", "clubs"]
-    }
-
-    detected_category = None
-
-    for category, words in category_keywords.items():
-
-        if any(word in message for word in words):
-            detected_category = category
-            break
-
-    # =========================
-    # VEG / NONVEG
-    # =========================
-
-    veg_search = any(word in message for word in [
-        "veg",
-        "vegetarian",
-        "pure veg"
-    ])
-
-    nonveg_search = any(word in message for word in [
-        "non veg",
-        "nonveg",
-        "chicken",
-        "biryani",
-        "bbq",
-        "grill"
-    ])
-
-    # =========================
-    # PREMIUM
-    # =========================
-
-    premium_only = "premium" in message
-
-    # =========================
-    # CITY FILTER
-    # =========================
-
-    known_cities = [
-        "bangkok",
-        "mumbai",
-        "chennai",
-        "bangalore",
-        "kochi",
-        "delhi",
-        "hyderabad",
-        "pune",
-        "kolkata"
-    ]
-
-    detected_city = None
-
-    for city in known_cities:
-
-        if city in message:
-            detected_city = city
-            break
-
-    if detected_city:
+    if any(word in words for word in ["bar", "bars"]):
 
         query = query.filter(
-            Venue.city.ilike(f"%{detected_city}%")
+            Venue.category.ilike("%bar%")
         )
 
-    # =========================
-    # AREA FILTER
-    # =========================
-
-    known_areas = [
-        "sukhumvit",
-        "powai",
-        "royapuram",
-        "bandra",
-        "juhu",
-        "andheri",
-        "adyar",
-        "koramangala",
-        "fort kochi",
-        "t nagar",
-        "velachery",
-        "indiranagar",
-        "sathorn"
-    ]
-
-    detected_area = None
-
-    for area in known_areas:
-
-        if area in message:
-            detected_area = area
-            break
-
-    if detected_area:
+    elif any(word in words for word in ["pub", "pubs"]):
 
         query = query.filter(
-            or_(
-                Venue.area.ilike(f"%{detected_area}%"),
-                Venue.address.ilike(f"%{detected_area}%")
-            )
+            Venue.category.ilike("%pub%")
         )
 
-    # =========================
-    # FLEXIBLE CATEGORY FILTER
-    # =========================
-
-    if detected_category == "bar":
+    elif any(word in words for word in ["restaurant", "restaurants", "hotel", "hotels"]):
 
         query = query.filter(
-            or_(
-                Venue.category.ilike("%bar%"),
-                Venue.category.ilike("%pub%"),
-                Venue.category.ilike("%lounge%"),
-                Venue.name.ilike("%bar%")
-            )
+            Venue.category.ilike("%restaurant%")
         )
 
-    elif detected_category == "pub":
-
-        query = query.filter(
-            or_(
-                Venue.category.ilike("%pub%"),
-                Venue.category.ilike("%bar%")
-            )
-        )
-
-    elif detected_category == "restaurant":
-
-        query = query.filter(
-            or_(
-                Venue.category.ilike("%restaurant%"),
-                Venue.category.ilike("%hotel%"),
-                Venue.category.ilike("%dining%")
-            )
-        )
-
-    elif detected_category == "cafe":
+    elif any(word in words for word in ["cafe", "cafes", "coffee"]):
 
         query = query.filter(
             Venue.category.ilike("%cafe%")
@@ -351,7 +252,11 @@ async def ai_chat(
     # VEG FILTER
     # =========================
 
-    if veg_search:
+    if any(word in message for word in [
+        "veg",
+        "vegetarian",
+        "pure veg"
+    ]):
 
         query = query.filter(
             Venue.food_type.ilike("%veg%")
@@ -362,10 +267,17 @@ async def ai_chat(
         )
 
     # =========================
-    # NONVEG FILTER
+    # NON VEG FILTER
     # =========================
 
-    if nonveg_search:
+    elif any(word in message for word in [
+        "non veg",
+        "nonveg",
+        "chicken",
+        "bbq",
+        "grill",
+        "biryani"
+    ]):
 
         query = query.filter(
             or_(
@@ -381,7 +293,7 @@ async def ai_chat(
     # COCKTAIL FILTER
     # =========================
 
-    if "cocktail" in message or "cocktails" in message:
+    if "cocktail" in message:
 
         query = query.filter(
             or_(
@@ -391,31 +303,61 @@ async def ai_chat(
         )
 
     # =========================
-    # BUY ONE GET ONE FILTER
-    # =========================
-
-    if (
-        "buy one get one" in message
-        or "buy 1 get 1" in message
-        or "bogo" in message
-    ):
-
-        query = query.filter(
-            or_(
-                Venue.deal.ilike("%buy%"),
-                Venue.deal.ilike("%1+1%"),
-                Venue.deal.ilike("%free%")
-            )
-        )
-
-    # =========================
     # PREMIUM FILTER
     # =========================
 
-    if premium_only:
+    if "premium" in message:
 
         query = query.filter(
             Venue.is_premium == True
+        )
+
+    # =========================
+    # DYNAMIC LOCATION SEARCH
+    # =========================
+
+    ignored_words = [
+        "list",
+        "show",
+        "find",
+        "give",
+        "me",
+        "hotels",
+        "hotel",
+        "bars",
+        "bar",
+        "restaurants",
+        "restaurant",
+        "cafes",
+        "cafe",
+        "pubs",
+        "pub",
+        "in",
+        "near",
+        "best",
+        "top",
+        "vegetarian",
+        "veg",
+        "nonveg",
+        "non",
+        "premium",
+        "cocktail"
+    ]
+
+    location_words = [
+        word for word in words
+        if word not in ignored_words
+    ]
+
+    # SEARCH EACH WORD DYNAMICALLY
+    for word in location_words:
+
+        query = query.filter(
+            or_(
+                Venue.city.ilike(f"%{word}%"),
+                Venue.area.ilike(f"%{word}%"),
+                Venue.address.ilike(f"%{word}%")
+            )
         )
 
     # =========================
@@ -447,74 +389,112 @@ async def ai_chat(
     if not venues:
 
         return {
-            "reply": (
-                "😔 Sorry, I couldn't find matching venues.\n\n"
-                "Try searches like:\n"
-                "• Vegetarian restaurants in Bangkok\n"
-                "• Bars in Mumbai\n"
-                "• Cocktail bars in Chennai\n"
-                "• Cafes in Bangalore"
-            )
+            "reply": "No matching venues found."
         }
 
     # =========================
     # FORMAT RESPONSE
     # =========================
 
-    response = "🍽️ Here are some places I found:\n\n"
+    response = "🍽️ Matching venues:\n\n"
 
     for idx, venue in enumerate(venues, start=1):
 
         response += f"{idx}. {venue.name}\n"
 
+        if venue.category:
+            response += f"🍴 {venue.category}\n"
+
         location_parts = []
 
-        # CLEAN AREA
-        if (
-            venue.area
-            and str(venue.area).lower() != "nan"
-            and str(venue.area).lower() != "none"
-        ):
-            location_parts.append(venue.area.strip())
+        if venue.area and str(venue.area).lower() != "nan":
+            location_parts.append(venue.area)
 
-        # CLEAN CITY
-        if (
-            venue.city
-            and str(venue.city).lower() != "nan"
-            and str(venue.city).lower() != "none"
-        ):
-            location_parts.append(venue.city.strip())
+        if venue.city and str(venue.city).lower() != "nan":
+            location_parts.append(venue.city)
 
-        # FALLBACK TO ADDRESS
-        if (
-            not location_parts
-            and venue.address
-            and str(venue.address).lower() != "nan"
-            and str(venue.address).lower() != "none"
-        ):
-            if location_parts:
-                response += f"📍 {', '.join(location_parts)}\n"
-            else:
-                response += "📍 Location unavailable\n"
-            location_parts.append(venue.address.strip())
+        if location_parts:
+            response += f"📍 {', '.join(location_parts)}\n"
 
-            if venue.category:
-                response += f"🍴 {venue.category}\n"
+        elif venue.address:
+            response += f"📍 {venue.address}\n"
 
-            if venue.food_type:
-                response += f"🥗 {venue.food_type}\n"
+        if venue.food_type:
+            response += f"🥗 {venue.food_type}\n"
 
-            if venue.drink_type:
-                response += f"🍹 {venue.drink_type}\n"
+        if venue.drink_type:
+            response += f"🍹 {venue.drink_type}\n"
 
-            if venue.rating:location
+        if venue.rating:
             response += f"⭐ {venue.rating}\n"
 
-            if venue.deal:
-                response += f"🔥 {venue.deal}\n"
+        if venue.deal:
+            response += f"🔥 {venue.deal}\n"
 
-            response += "\n"
+        response += "\n"
+
+    return {
+        "reply": response
+    }
+# =========================
+# UPDATE VENUE IMAGE
+# =========================
+
+@app.post("/venues/{venue_id}/upload-image")
+async def upload_venue_image(
+    venue_id: int,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+
+    try:
+
+        # FIND VENUE
+        venue = db.query(Venue).filter(
+            Venue.id == venue_id
+        ).first()
+
+        if not venue:
+            return {
+                "success": False,
+                "message": "Venue not found"
+            }
+
+        # CREATE UPLOADS FOLDER
+        os.makedirs("uploads", exist_ok=True)
+
+        # UNIQUE FILE NAME
+        filename = f"{uuid.uuid4()}_{image.filename}"
+
+        filepath = os.path.join("uploads", filename)
+
+        # SAVE IMAGE
+        with open(filepath, "wb") as buffer:
+            buffer.write(await image.read())
+
+        # SAVE PATH TO DATABASE
+        venue.local_image = f"/uploads/{filename}"
+
+        # IMPORTANT
+        db.add(venue)
+
+        db.commit()
+
+        db.refresh(venue)
+
+        print("IMAGE SAVED:", venue.local_image)
 
         return {
-            "reply": response
+            "success": True,
+            "message": "Image uploaded successfully",
+            "local_image": venue.local_image
+        }
+
+    except Exception as e:
+
+        print("UPLOAD ERROR:", str(e))
+
+        return {
+            "success": False,
+            "message": str(e)
         }

@@ -7,7 +7,7 @@ import { AIChatbot } from './components/AIChatbot';
 import { LoginModal } from './components/LoginModal';
 import { PremiumModal } from './components/PremiumModal';
 import { VenueDetailsModal } from './components/VenueDetailsModal';
-import { fetchVenues, Venue } from './services/api';
+import { fetchVenues, Venue, fetchFavorites } from './services/api';
 import VenueMap from './components/VenueMap';
 
 export default function App() {
@@ -19,6 +19,7 @@ export default function App() {
   const [venueDetailsModalOpen, setVenueDetailsModalOpen] = useState(false);
   const [selectedVenue, setSelectedVenue] = useState<typeof venues[0] | null>(null);
   const [favorites, setFavorites] = useState<number[]>([]);
+  // const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
   const [sortBy, setSortBy] = useState('distance');
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
   const [userLocation, setUserLocation] = useState('India');
@@ -28,6 +29,7 @@ export default function App() {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewImage, setReviewImage] = useState<File | null>(null);
+  // const [isFavorite, setIsFavorite] = useState(false);
   const [userCoordinates, setUserCoordinates] = useState<{
   lat: number;
   lon: number;
@@ -217,6 +219,7 @@ const ITEMS_PER_PAGE = 50;
   // ];
   useEffect(() => {
   loadVenues();
+  loadFavorites();
 }, [filters,currentPage]);
 useEffect(() => {
 
@@ -229,6 +232,7 @@ useEffect(() => {
   }
 
 }, [venues]);
+
 useEffect(() => {
 
   navigator.geolocation.getCurrentPosition(
@@ -254,18 +258,75 @@ useEffect(() => {
   );
 
 }, []);
+const loadFavorites = async () => {
+
+  try {
+
+    const response = await fetch(
+      "http://127.0.0.1:8000/favorites"
+    );
+
+    const data = await response.json();
+
+    console.log("FAVORITES:", data);
+
+    setFavorites(data.map((item: any) => item.venue_id));
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+};
+const handleFavorite = async (venueId: number) => {
+
+  try {
+
+    const isAlreadyFavorite = favorites.includes(venueId);
+
+    const response = await fetch(
+      `http://127.0.0.1:8000/favorites/${venueId}`,
+      {
+        method: isAlreadyFavorite ? "DELETE" : "POST",
+      }
+    );
+
+    const data = await response.json();
+
+    console.log(data);
+
+    if (isAlreadyFavorite) {
+
+      setFavorites(prev =>
+        prev.filter(id => id !== venueId)
+      );
+
+    } else {
+
+      setFavorites(prev => [...prev, venueId]);
+
+    }
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+};
+
 const loadVenues = async () => {
   try {
     setLoading(true);
     console.log("FILTERS BEFORE API:", filters);
   const data = await fetchVenues({
   country: filters.country?.trim(),
-state: filters.state?.trim(),
-city: filters.city?.trim(),
-area: filters.area?.trim(),
-search: searchQuery,
-category: filters.venueType?.trim(),
-  
+  state: filters.state?.trim(),
+  city: filters.city?.trim(),
+  area: filters.area?.trim(),
+  search: searchQuery,
+  category: filters.venueType?.trim(),
 
   food_type: filters.foodType,
   drink_type: filters.drinkType,
@@ -276,8 +337,6 @@ category: filters.venueType?.trim(),
   page: currentPage,
   limit: ITEMS_PER_PAGE,
 });
-  console.log("FULL API RESPONSE:", data);
-console.log("TOTAL VENUES:", data.length);
     const transformedData = data.map((venue: any) => ({
       id: venue.id,
       name: venue.name,
@@ -287,12 +346,34 @@ console.log("TOTAL VENUES:", data.length);
       area: venue.area || "",
 
       image:
-        venue.image_url ||
-        "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800",
+  venue.local_image &&
+  venue.local_image !== "null" &&
+  venue.local_image !== ""
+    ? `http://127.0.0.1:8000${venue.local_image}`
 
-      rating: venue.rating || 4.5,
+    : venue.image_url &&
+      venue.image_url !== "null" &&
+      venue.image_url.trim() !== ""
 
-      reviews: venue.reviews_count || 0,
+    ? venue.image_url.replace(/^http:\/\//i, "https://")
+
+    : "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800",
+
+      image_url: venue.image_url,
+
+      local_image: venue.local_image,
+      rating:
+  venue.rating !== null &&
+  venue.rating !== undefined &&
+  venue.reviews_count > 0
+    ? Number(venue.rating)
+    : null,
+
+reviews:
+  venue.reviews_count !== null &&
+  venue.reviews_count !== undefined
+    ? Number(venue.reviews_count)
+    : 0,
 
       distance: "Nearby",
 
@@ -334,6 +415,7 @@ console.log("TOTAL VENUES:", data.length);
     setLoading(false);
   }
 };
+
   const handleFilterChange = (key: string, value: string | boolean) => {
 
   setFilters(prev => {
@@ -369,17 +451,49 @@ console.log("TOTAL VENUES:", data.length);
   setCurrentPage(1);
 };
 
-  const toggleFavorite = (id: number) => {
-    setFavorites(prev =>
-      prev.includes(id) ? prev.filter(fav => fav !== id) : [...prev, id]
-    );
-  };
-
+    // const toggleFavorite = (id: number) => {
+    //   setFavorites(prev =>
+    //     prev.includes(id) ? prev.filter(fav => fav !== id) : [...prev, id]
+    //   );
+    // };
+ 
   const handleViewDetails = (venue: typeof venues[0]) => {
     setSelectedVenue(venue);
     setVenueDetailsModalOpen(true);
   };
+  const handleImageUpload = async (
+  e: React.ChangeEvent<HTMLInputElement>
+) => {
 
+  const file = e.target.files?.[0]
+
+  if (!file) return
+
+  const formData = new FormData()
+
+  formData.append("image", file)
+
+  try {
+
+    const response = await fetch(
+      `http://127.0.0.1:8000/venues/${venue.id}/image`,
+      {
+        method: "PUT",
+        body: formData,
+      }
+    )
+
+    const data = await response.json()
+
+    console.log(data)
+
+    window.location.reload()
+
+  } catch (error) {
+
+    console.error(error)
+  }
+}
   const handleMapViewToggle = () => {
     if (viewMode === 'grid') {
       setViewMode('map');
@@ -408,17 +522,33 @@ console.log("TOTAL VENUES:", data.length);
   //   return true;
   // });
 
-  const sortedVenues = [...venues].sort((a, b) => {
+  const sortedVenues = [...venues]
+  .filter((venue) => {
+
+    // SHOW ONLY FAVORITES
+    if (sortBy === "favorites") {
+      return favorites.includes(venue.id);
+    }
+
+    return true;
+  })
+  .sort((a, b) => {
+
     switch (sortBy) {
-      case 'distance':
+
+      case "distance":
         return parseFloat(a.distance) - parseFloat(b.distance);
-      case 'rating':
+
+      case "rating":
         return b.rating - a.rating;
-      case 'deals':
+
+      case "deals":
         return b.reviews - a.reviews;
+
       default:
         return 0;
     }
+
   });
   const handleSearch = () => {
 
@@ -594,6 +724,7 @@ console.log("TOTAL VENUES:", data.length);
               <option value="distance">Nearest First</option>
               <option value="rating">Highest Rated</option>
               <option value="deals">Best Deals</option>
+              <option value="favorites">Favorites</option>
             </select>
           </div>
           <div className="text-gray-600">
@@ -630,8 +761,8 @@ console.log("TOTAL VENUES:", data.length);
                   key={venue.id}
                   venue={venue}
                   isPremiumMember={isPremiumMember}
-                  onFavorite={toggleFavorite}
-                  isFavorited={favorites.includes(venue.id)}
+                  onFavorite={(id) => handleFavorite(Number(id))}
+                 isFavorited={favorites.includes(Number(venue.id))}
                   onViewDetails={() => handleViewDetails(venue)}
                 />
               ))}

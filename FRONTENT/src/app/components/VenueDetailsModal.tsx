@@ -2,9 +2,10 @@ import { X, MapPin, Clock, Star, Users, Phone, Mail, Calendar, Upload, Send } fr
 import { useEffect, useState } from 'react';
 import {
     fetchReviews,
-    createReview
+    createReview,
+    uploadVenueImage 
   } from '../services/api';
-
+    
 interface VenueDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -13,7 +14,7 @@ interface VenueDetailsModalProps {
     name: string;
     type: string;
     image: string;
-    rating: number;
+    rating: number | null;
     reviews: number;
     distance: string;
     happyHour: string;
@@ -44,10 +45,59 @@ export function VenueDetailsModal({ isOpen, onClose, venue }: VenueDetailsModalP
 //   }
 
 // }, [venue]);
-useEffect(() => {
-  if (isOpen && venue?.id) {
-    loadReviews();
+const handleImageUpload = async (
+  e: React.ChangeEvent<HTMLInputElement>
+) => {
+
+  const file = e.target.files?.[0];
+
+  if (!file) return;
+
+  try {
+
+    const response = await uploadVenueImage(
+      venue.id,
+      file
+    );
+    alert("Image uploaded successfully");
+    // =========================
+    // UPDATE IMAGE IMMEDIATELY
+    // =========================
+
+    const updatedImage =
+      `http://127.0.0.1:8000${response.local_image}`;
+
+    // update current venue object
+    venue.image = updatedImage;
+
+    venue.local_image = response.local_image;
+
+    // force refresh
+    window.location.reload();
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert("Failed to upload image");
   }
+};
+useEffect(() => {
+
+  if (isOpen && venue?.id) {
+
+    loadReviews();
+
+  } else {
+
+    // Reset review form when modal closes
+    setReviewName("");
+    setReviewComment("");
+    setReviewRating(0);
+    setReviewImage(null);
+
+  }
+
 }, [isOpen, venue]);
 const loadReviews = async () => {
   if (!venue) return;
@@ -55,9 +105,22 @@ const loadReviews = async () => {
   try {
     setReviewLoading(true);
 
-    const data = await fetchReviews(venue.id);
+   const data = await fetchReviews(venue.id);
 
-    setReviews(data);
+setReviews(data);
+
+// CALCULATE HIGHEST RATING
+if (data.length > 0) {
+
+  const highestRating = Math.max(
+    ...data.map((r: any) => r.rating)
+  );
+
+  // UPDATE VENUE OBJECT
+  venue.rating = highestRating;
+
+  venue.reviews = data.length;
+}
   } catch (error) {
     console.error("Failed loading reviews:", error);
   } finally {
@@ -73,20 +136,23 @@ const loadReviews = async () => {
     guests: '2'
   });
 
-  
+  const [ratingError, setRatingError] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
 const [reviewLoading, setReviewLoading] = useState(false);
 
 const [reviewName, setReviewName] = useState("");
 const [reviewComment, setReviewComment] = useState("");
-const [reviewRating, setReviewRating] = useState(5);
+const [reviewRating, setReviewRating] = useState(0);
 const [reviewImage, setReviewImage] = useState<File | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'reserve' | 'reviews'>('details');
 
   if (!isOpen || !venue) return null;
   
   const handleReviewSubmit = async () => {
-
+    if (reviewRating === 0) {
+  alert("Rating is required");
+  return;
+}
   const formData = new FormData();
 
   formData.append("venue_id", String(venue.id));
@@ -110,7 +176,7 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
     // CLEAR FORM
     setReviewName("");
     setReviewComment("");
-    setReviewRating(5);
+    setReviewRating(0);
     setReviewImage(null);
 
     alert("Review submitted successfully");
@@ -155,25 +221,81 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full my-8 relative max-h-[90vh] overflow-hidden flex flex-col">
         <button
-          onClick={onClose}
-          className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm text-gray-700 hover:text-gray-900 z-10 p-2 rounded-full shadow-lg"
-        >
+  onClick={() => {
+
+    setReviewName("");
+    setReviewComment("");
+    setReviewRating(0);
+    setReviewImage(null);
+
+    onClose();
+
+  }}
+  className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm text-gray-700 hover:text-gray-900 z-10 p-2 rounded-full shadow-lg"
+>
           <X className="w-6 h-6" />
-        </button>
+        </button> 
 
         {/* Hero Image */}
         <div className="relative h-64 overflow-hidden">
-          <img src={venue.image} alt={venue.name} className="w-full h-full object-cover" />
+          <img
+  src={
+    venue.local_image
+      ? `http://127.0.0.1:8000${venue.local_image}`
+      : venue.image_url
+      ? venue.image_url.replace(/^http:\/\//i, "https://")
+      : "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800"
+  }
+  alt={venue.name}
+  className="w-full h-full object-cover"
+/>
+
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <div className="absolute bottom-6 left-6 text-white">
             <h2 className="text-4xl mb-2">{venue.name}</h2>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
-                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                <span>{venue.rating}</span>
-                <span className="text-sm">({venue.reviews} reviews)</span>
-              </div>
+              {venue.rating !== null && venue.reviews > 0 && (
+  <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
+    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+    <span>{venue.rating}</span>
+    <span className="text-sm">
+      ({venue.reviews} reviews)
+    </span>
+  </div>
+)}
               <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">{venue.type}</span>
+              <div style={{ marginTop: "10px" }}>
+
+  <label
+  className="
+    flex items-center justify-center
+    bg-blue-600/90
+    hover:bg-blue-700
+    text-white
+    px-4 py-2
+    rounded-xl
+    text-sm md:text-base
+    font-medium
+    cursor-pointer
+    shadow-lg
+    transition-all
+    duration-300
+    min-w-[120px]
+  "
+>
+    Edit Image
+
+    <input
+      type="file"
+      accept="image/*"
+      style={{ display: "none" }}
+      onChange={(e) =>
+        handleImageUpload(e, venue.id)
+      }
+    />
+  </label>
+
+</div>
             </div>
           </div>
         </div>
@@ -484,6 +606,11 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
         </button>
       ))}
     </div>
+    {reviewRating === 0 && (
+  <p className="text-red-500 text-sm mt-2">
+    Rating is required
+  </p>
+)}
   </div>
 
   <div>

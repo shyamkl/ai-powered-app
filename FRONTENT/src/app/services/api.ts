@@ -13,7 +13,7 @@ export interface Venue {
   timing: string;
   rating: number;
   reviews_count: number;
-  area: string;
+  area?: string;
   lat: number;
   lon: number;
 
@@ -152,3 +152,81 @@ export const sendChatMessage = async (message: string) => {
   return response.json();
 };
 
+// ======================
+// FAVORITES
+// ======================
+
+export const addFavorite = async (venueId: number) => {
+
+  const response = await fetch(
+    `${API_BASE_URL}/favorites/${venueId}`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to add favorite");
+  }
+
+  return response.json();
+};
+
+
+export const removeFavorite = async (venueId: number) => {
+
+  const response = await fetch(
+    `${API_BASE_URL}/favorites/${venueId}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to remove favorite");
+  }
+
+  return response.json();
+};
+
+
+export const fetchFavorites = async () => {
+
+  const response = await fetch(
+    `${API_BASE_URL}/favorites`
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch favorites");
+  }
+
+  return response.json();
+};
+
+// =========================
+// UPLOAD VENUE IMAGE
+// =========================
+
+export const uploadVenueImage = async (
+  venueId: number,
+  imageFile: File
+) => {
+
+  const formData = new FormData();
+
+  formData.append("image", imageFile);
+
+  const response = await fetch(
+    `http://127.0.0.1:8000/venues/${venueId}/upload-image`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to upload image");
+  }
+
+  return response.json();
+};

@@ -14,6 +14,7 @@ export function AIChatbot() {
   ]);
 
   const [inputMessage, setInputMessage] = useState("");
+  
 
   const handleSendMessage = async () => {
 
@@ -26,14 +27,39 @@ export function AIChatbot() {
 
     setMessages(prev => [...prev, userMessage]);
 
-    const currentMessage = inputMessage;
+    const currentMessage = inputMessage.trim();
 
-    setInputMessage("");
+setInputMessage("");
 
-    try {
+// GREETING DETECTION
+const greetings = [
+  "hi",
+  "hello",
+  "hey",
+  "hii",
+  "helo",
+  "good morning",
+  "good afternoon",
+  "good evening",
+  "how are you"
+];
 
-      const response = await sendChatMessage(currentMessage);
+if (greetings.includes(currentMessage.toLowerCase())) {
 
+  setMessages(prev => [
+    ...prev,
+    {
+      sender: "bot",
+      text: "Hi! I'm your AI assistant. I can help you find venues, suggest deals, and answer questions."
+    }
+  ]);
+
+  return;
+}
+
+try {
+
+  const response = await sendChatMessage(currentMessage);
       const botMessage = {
         sender: "bot",
         text: response.reply,
