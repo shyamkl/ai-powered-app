@@ -17,3 +17,6 @@ build/
 
 # Logs
 *.log
+
+BACKEND/uploads/
+*.sql
