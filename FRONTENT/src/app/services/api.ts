@@ -32,6 +32,14 @@ export async function fetchVenues(filters?: any) {
 
   const params = new URLSearchParams();
 
+    if (filters?.latitude) {
+    params.append("latitude", filters.latitude);
+  }
+
+  if (filters?.longitude) {
+    params.append("longitude", filters.longitude);
+  }
+
   if (filters?.country) {
     params.append("country", filters.country);
   }
