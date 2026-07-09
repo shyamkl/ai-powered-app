@@ -54,18 +54,38 @@ function MyLocationButton() {
   const goToMyLocation = () => {
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
 
-        map.setView(
-          [
-            position.coords.latitude,
-            position.coords.longitude
-          ],
-          15
-        );
+(position)=>{
 
-      }
-    );
+map.setView(
+[
+position.coords.latitude,
+position.coords.longitude
+],
+15
+);
+
+},
+
+(error)=>{
+
+console.error(error);
+
+if(userCoordinates){
+
+map.setView(
+[
+userCoordinates.lat,
+userCoordinates.lon
+],
+15
+);
+
+}
+
+}
+
+);
 
   };
 
@@ -130,6 +150,7 @@ function FitBounds({ venues }: any) {
 
   return null;
 }
+
 function RoutingMachine({
   userCoordinates,
   liveLocation,
@@ -137,49 +158,52 @@ function RoutingMachine({
 }: any) {
 
   const map = useMap();
-
+const routingRef = React.useRef<any>(null);
   useEffect(() => {
 
-    if (
-      !userCoordinates ||
-      !selectedVenue
-    ) return;
+  if (!selectedVenue)
+    return;
 
-    const routingControl =
-      (L as any).Routing.control({
+  const origin = liveLocation || userCoordinates;
 
-        waypoints: [
+  if (!origin)
+    return;
 
-          L.latLng(
-           liveLocation?.lat || userCoordinates.lat,
-           liveLocation?.lon || userCoordinates.lon
-          ),
+  if (routingRef.current) {
+    map.removeControl(routingRef.current);
+  }
 
-          L.latLng(
-            selectedVenue.lat,
-            selectedVenue.lon
-          )
+  routingRef.current = (L as any).Routing.control({
 
-        ],
+    waypoints: [
 
-        routeWhileDragging: false,
+      L.latLng(origin.lat, origin.lon),
 
-        addWaypoints: false,
+      L.latLng(
+        selectedVenue.lat,
+        selectedVenue.lon
+      )
 
-        draggableWaypoints: false,
+    ],
 
-        fitSelectedRoutes: true,
+    routeWhileDragging: false,
+    addWaypoints: false,
+    draggableWaypoints: false,
+    fitSelectedRoutes: true,
+    show: true
 
-        show: true
+  }).addTo(map);
 
-      }).addTo(map);
+  return () => {
 
-    return () => {
-      map.removeControl(routingControl);
-    };
+    if (routingRef.current) {
+      map.removeControl(routingRef.current);
+      routingRef.current = null;
+    }
 
-  }, [selectedVenue, liveLocation]);
+  };
 
+}, [selectedVenue, liveLocation, userCoordinates, map]);
   return null;
 }
 function LiveLocationTracker({
@@ -508,22 +532,16 @@ useEffect(() => {
                 setShowDirections(true);
                 setTimeout(() => {
 
-      const panel =
-  document.querySelector(
-    ".leaflet-routing-container"
-  ) as HTMLElement;
+    
+const panel =
+document.querySelector(
+".leaflet-routing-container"
+) as HTMLElement;
 
 if(panel){
 
-  if(panel.style.visibility === "hidden"){
-
-    panel.style.visibility = "visible";
-
-  } else {
-
-    panel.style.visibility = "hidden";
-
-  }
+    panel.style.visibility="visible";
+    panel.style.display="block";
 
 }
 
@@ -548,12 +566,15 @@ if(panel){
 </p>
 
 <button
-  onClick={() => {
+onClick={() => {
+
+    setSelectedVenue(venue);
 
     setNavigationActive(true);
 
-  }}
-  className="mt-2 px-3 py-2 bg-green-600 text-white rounded"
+    setShowDirections(true);
+
+}}
 >
   Start Navigation
 </button>

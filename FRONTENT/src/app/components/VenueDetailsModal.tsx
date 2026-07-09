@@ -65,7 +65,7 @@ const handleImageUpload = async (
     // =========================
 
     const updatedImage =
-      `http://127.0.0.1:8000${response.local_image}`;
+      `http://127.0.0.1:8000/${response.local_image}`;
 
     // update current venue object
     venue.image = updatedImage;
@@ -241,10 +241,10 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
           <img
   src={
     venue.local_image
-      ? `http://127.0.0.1:8000${venue.local_image}`
+      ? `http://127.0.0.1:8000/${venue.local_image}`
       : venue.image_url
       ? venue.image_url.replace(/^http:\/\//i, "https://")
-      : "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800"
+      : "http://127.0.0.1:8000/photo-1514933651103-005eec06c04b?w=800"
   }
   alt={venue.name}
   className="w-full h-full object-cover"
@@ -684,7 +684,7 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
 
         {review.image_url && (
           <img
-            src={`http://127.0.0.1:8000${review.image_url}`}
+            src={`http://127.0.0.1:8000/${review.image_url}`}
             alt="review"
             className="w-40 mt-3 rounded-lg"
           />

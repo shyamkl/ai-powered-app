@@ -55,14 +55,14 @@ export function VenueCard({
   src={
     // USER UPLOADED IMAGE
     venue.local_image
-      ? `http://127.0.0.1:8000${venue.local_image}`
+      ? `http://127.0.0.1:8000/api${venue.local_image}`
 
       // EXISTING DATABASE IMAGE
       : venue.image_url
       ? venue.image_url
 
       // FALLBACK IMAGE
-      : "https://placehold.co/600x400?text=No+Image"
+      : "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800"
   }
 
   alt={venue.name}
@@ -73,20 +73,35 @@ export function VenueCard({
 
     // FALLBACK ONLY IF IMAGE FAILS
     (e.currentTarget as HTMLImageElement).src =
-      "https://placehold.co/600x400?text=No+Image";
+      "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800";
   }}
 /> */}
 <img
-  src={venue.image}
+  src={
+    venue.local_image
+      ? `http://127.0.0.1:8000/${venue.local_image}`
+      : venue.image_url
+      ? venue.image_url.replace(/^http:\/\//i, "https://")
+      : "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800"
+  }
   alt={venue.name}
   className="w-full h-48 object-cover rounded"
   onError={(e) => {
-
     const target = e.currentTarget;
 
-    // prevent infinite loop
-    target.onerror = null;
+    // If uploaded image fails, try original image
+    if (
+      venue.image_url &&
+      target.src.includes("/uploads/")
+    ) {
+      target.src = venue.image_url.replace(
+        /^http:\/\//i,
+        "https://"
+      );
+      return;
+    }
 
+    target.onerror = null;
     target.src =
       "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800";
   }}

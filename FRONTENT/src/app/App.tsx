@@ -299,7 +299,7 @@ useEffect(() => {
       const lat = position.coords.latitude;
       const lon = position.coords.longitude;
       setLocationLoaded(true);
-      const TEST_MODE = false;
+      const TEST_MODE = true;
 
 if (TEST_MODE) {
   setUserCoordinates({
@@ -465,7 +465,7 @@ const loadVenues = async () => {
   venue.local_image &&
   venue.local_image !== "null" &&
   venue.local_image !== ""
-    ? `http://127.0.0.1:8000${venue.local_image}`
+    ? `http://127.0.0.1:8000/${venue.local_image}`
 
     : venue.image_url &&
       venue.image_url !== "null" &&
@@ -474,7 +474,6 @@ const loadVenues = async () => {
     ? venue.image_url.replace(/^http:\/\//i, "https://")
 
     : "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800",
-
       image_url: venue.image_url,
 
       local_image: venue.local_image,
@@ -595,7 +594,7 @@ reviews:
   try {
 
     const response = await fetch(
-      `http://127.0.0.1:8000/venues/${venue.id}/image`,
+     `http://127.0.0.1:8000/venues/${venue.id}/image`,
       {
         method: "PUT",
         body: formData,
