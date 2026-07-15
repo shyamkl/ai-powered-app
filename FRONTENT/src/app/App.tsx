@@ -10,6 +10,7 @@ import { VenueDetailsModal } from './components/VenueDetailsModal';
 import { fetchVenues, Venue, fetchFavorites } from './services/api';
 import VenueMap from './components/venueMap';
 import 'leaflet/dist/leaflet.css';
+import { reverseGeocode } from "./services/geocoding";
 
 export default function App() {
   const [mapSearch, setMapSearch] = useState("");
@@ -19,11 +20,34 @@ export default function App() {
 
   try {
 
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${mapSearch}`
+    const location = await reverseGeocode(lat,lon);
+
+    console.log(
+        "Location source:",
+        location.source
     );
 
-    const data = await response.json();
+setUserLocation(location.city);
+
+setFilters(prev => ({
+    ...prev,
+    city: location.city,
+    state: location.state,
+    country: location.country
+}));
+console.log("Updated Filters:", {
+
+    country: location.country,
+
+    state: location.state,
+
+    city: location.city
+
+});
+localStorage.setItem(
+    "userCity",
+    location.city
+);
 
     if (data.length > 0) {
 
@@ -52,7 +76,7 @@ export default function App() {
   // const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
   const [sortBy, setSortBy] = useState('distance');
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
-  const [userLocation, setUserLocation] = useState('');
+  const [userLocation, setUserLocation] = useState("");
   const [searchQuery, setSearchQuery] = useState('');
   const [reviews, setReviews] = useState<any[]>([]);
   const [reviewName, setReviewName] = useState('');
@@ -65,6 +89,9 @@ export default function App() {
   lon: number;
 } | null>(null);
   const [locationLoaded, setLocationLoaded] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  console.log("LOCATION LOADED =", locationLoaded);
+  console.log("USER LOCATION =", userLocation);
   const [filters, setFilters] = useState({
     country: '',
     state: '',
@@ -251,6 +278,14 @@ const ITEMS_PER_PAGE = 50;
   useEffect(() => {
 
   if (!locationLoaded) return;
+  
+  if (
+        !filters.city &&
+        !filters.country &&
+        !filters.state
+    ) {
+        return;
+    }
 
   loadVenues();
   loadFavorites();
@@ -281,6 +316,7 @@ useEffect(() => {
     console.log("Saved city:", savedCity);
 
     setUserLocation(savedCity);
+    // setLocationLoaded(true);
 
     // setFilters(prev => ({
     //   ...prev,
@@ -288,84 +324,217 @@ useEffect(() => {
     // }));
 
   }
-
+   requestCurrentLocation();
 }, []);
-useEffect(() => {
+const getCurrentPosition = () => {
 
-  navigator.geolocation.getCurrentPosition(
+  return new Promise<GeolocationPosition>((resolve, reject) => {
 
-    async (position) => {
+    // navigator.geolocation.getCurrentPosition(
 
-      const lat = position.coords.latitude;
-      const lon = position.coords.longitude;
-      setLocationLoaded(true);
-      const TEST_MODE = true;
+    //   resolve,
 
-if (TEST_MODE) {
-  setUserCoordinates({
-    lat: 12.9249,
-    lon: 80.1000
+    //   reject,
+
+    //   {
+    //     enableHighAccuracy: true,
+    //     timeout: 10000,
+    //     maximumAge: 0
+    //   }
+
+    // );
+
   });
 
-  setUserLocation("Tambaram");
+};
+const requestCurrentLocation = async () => {
 
-  return;
-}
-      setUserCoordinates({
-        lat,
-        lon
-      });
+    if (!navigator.geolocation) {
 
-      try {
+        console.log("Geolocation not supported");
+        return;
 
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
-        );
-
-        const data = await response.json();
-
-        const city =
-          data.address.city ||
-          data.address.town ||
-          data.address.village ||
-          "";
-        const previousCity = localStorage.getItem("userCity");
-
-if (previousCity !== city) {
-
-  console.log(
-    "Location changed:",
-    previousCity,
-    "->",
-    city
-  );
-
-  localStorage.setItem("userCity", city);
-
-}
-        console.log("Detected city:", city);
-        localStorage.setItem("userCity", city);
-
-        setUserLocation(city);
-        setFilters(prev => ({
-          ...prev,
-          city
-        }));
-
-      } catch (err) {
-        console.error(err);
-      }
-
-    },
-
-    (error) => {
-      console.error(error);
-      setLocationLoaded(true);
     }
+    
+    navigator.geolocation.getCurrentPosition(
 
-  );
+        async (position) => {
 
-}, []);
+            setShowLocationModal(false);
+
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+
+            setLocationLoaded(true);
+               //       const TEST_MODE = true;
+
+              // if (TEST_MODE) {
+              //   setUserCoordinates({
+              //     lat: 12.9249,
+              //     lon: 80.1000
+              //   });
+
+              //   setUserLocation("Tambaram");
+
+              //   return;
+              // }
+            setUserCoordinates({
+                lat,
+                lon
+            });
+
+            try {
+
+                const location = await reverseGeocode(lat, lon);
+
+                console.log("Detected location:", location);
+
+                setUserLocation(location.city);
+
+                localStorage.setItem(
+                    "userCity",
+                    location.city
+                );
+
+                setFilters(prev => ({
+                    ...prev,
+                    city: location.city
+                }));
+
+            }
+
+            catch (err) {
+
+                console.error(err);
+
+            }
+
+        },
+
+        (error) => {
+
+            console.error("GPS ERROR:", error.code);
+            console.log("GPS MESSAGE:", error.message);
+            console.error(error);
+
+            setLocationLoaded(true);
+
+            if (error.code === error.PERMISSION_DENIED) {
+
+                setUserLocation("Location Permission Denied");
+                setShowLocationModal(true);
+                setLocationLoaded(true);
+                return;
+
+            }
+
+            if (error.code === error.POSITION_UNAVAILABLE) {
+
+                setUserLocation("Location Unavailable");
+                return;
+
+            }
+
+            if (error.code === error.TIMEOUT) {
+
+                setUserLocation("Location Timed Out");
+                return;
+
+            }
+
+            setUserLocation("Location Not Available");
+
+        },
+
+        {
+
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+
+        }
+
+    );
+
+};
+const retryLocation = () => {
+  setShowLocationModal(false);
+   requestCurrentLocation();
+  // navigator.permissions
+  //       ?.query({ name: "geolocation" as PermissionName })
+  //       .then(result => {
+
+  //           console.log(result.state);
+
+  //           if (result.state === "granted") {
+
+  //               requestCurrentLocation();
+
+  //           } else {
+
+  //               setShowLocationModal(true);
+
+  //           }
+  //       }); 
+
+};
+// useEffect(() => {
+
+//     requestCurrentLocation();
+
+// }, []);
+      
+// const detectLocation = async () => {
+
+//   try {
+
+//     const position = await getCurrentPosition();
+
+//     const lat = position.coords.latitude;
+//     const lon = position.coords.longitude;
+
+//     setUserCoordinates({
+//       lat,
+//       lon
+//     });
+
+//     const response = await fetch(
+//       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
+//     );
+
+//     const data = await response.json();
+
+//     const city =
+//       data.address.city ||
+//       data.address.town ||
+//       data.address.village ||
+//       "";
+
+//     setUserLocation(city);
+
+//     localStorage.setItem(
+//       "userCity",
+//       city
+//     );
+
+//     setFilters(prev => ({
+//       ...prev,
+//       city
+//     }));
+
+//     setLocationLoaded(true);
+
+//   }
+
+//   catch(error){
+
+//     console.error(error);
+
+//     setLocationLoaded(true);
+
+//   }
+
+// };
 const loadFavorites = async () => {
 
   try {
@@ -383,7 +552,7 @@ const loadFavorites = async () => {
   } catch (error) {
 
     console.error(error);
-
+    // setUserLocation("Location Found");
   }
 
 };
@@ -430,6 +599,7 @@ const loadVenues = async () => {
     setLoading(true);
     console.log("FILTERS BEFORE API:", filters);
     console.log("CITY FILTER =", filters.city);
+    console.log("FILTERS BEFORE API:", filters);
   const data = await fetchVenues({
 
   latitude: userCoordinates?.lat,
@@ -461,11 +631,10 @@ const loadVenues = async () => {
       type: (venue.category || "Venue").toLowerCase(),
       area: venue.area || "",
 
-      image:
+    image:
   venue.local_image &&
-  venue.local_image !== "null" &&
-  venue.local_image !== ""
-    ? `http://127.0.0.1:8000/${venue.local_image}`
+  venue.local_image.startsWith("/uploads/")
+    ? `http://127.0.0.1:8000${venue.local_image}`
 
     : venue.image_url &&
       venue.image_url !== "null" &&
@@ -797,13 +966,57 @@ reviews:
             </div>
           )}
              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg hover:scale-105 transition-all duration-300">
-  <MapPin className="w-4 h-4" />
-  <span className="font-semibold">
-    {userLocation || "Detecting location..."}
-  </span>
-</div>
+          <MapPin className="w-4 h-4" />
+          <span className="font-semibold">
+            {
+            locationLoaded
+                ? (userLocation || "Location found")
+                : "Detecting location..."
+            }
+          </span>
+          {
+}
+    </div>
         </div>
       </nav>
+{showLocationModal && (
+
+<div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+
+    <div className="bg-white rounded-xl shadow-xl p-6 w-[420px] max-w-[95%]">
+
+        <h2 className="text-xl font-bold mb-3">
+
+            📍 Enable Location
+
+        </h2>
+
+        <p className="text-gray-600 mb-6">
+
+            Happy Hour Finder needs your location to show nearby venues,
+            deals and navigation.
+
+            <br /><br />
+
+            Please enable Location permission in your browser.
+
+        </p>
+      <div className="flex justify-end">
+
+    <button
+        onClick={() => setShowLocationModal(false)}
+        className="px-5 py-2 rounded bg-orange-500 text-white"
+    >
+        Continue without location
+    </button>
+
+</div>
+       
+    </div>
+
+</div>
+
+)}
 
       {/* Hero Section */}
    
@@ -882,7 +1095,27 @@ reviews:
             {viewMode === 'grid' ? (
 
             <div className="grid md:grid-cols-2 gap-6">
-              {sortedVenues.map((venue) => (
+              {
+                 venues.length === 0 ? (
+
+    <div className="col-span-full flex flex-col items-center justify-center py-20">
+
+      <div className="text-6xl mb-5">📍</div>
+
+      <h2 className="text-2xl font-bold text-gray-700">
+        No venues found
+      </h2>
+
+      <p className="text-gray-500 mt-3 text-center max-w-lg">
+        We couldn't find any venues in your current location.
+        <br /><br />
+        Please select another Country, State or City using the filters above.
+      </p>
+
+    </div>
+
+  ) : 
+              sortedVenues.map((venue) => (
                 <VenueCard
                   key={venue.id}
                   venue={venue}
@@ -902,13 +1135,13 @@ reviews:
             >
              <div className="mb-4 flex gap-2">
 
-  <input
-    type="text"
-    placeholder="Search any place..."
-    value={mapSearch}
-    onChange={(e) => setMapSearch(e.target.value)}
-    className="flex-1 border rounded-lg px-4 py-2"
-  />
+    <input
+      type="text"
+      placeholder="Search any place..."
+      value={mapSearch}
+      onChange={(e) => setMapSearch(e.target.value)}
+      className="flex-1 border rounded-lg px-4 py-2"
+    />
 
   <button
     onClick={searchLocation}
@@ -917,18 +1150,18 @@ reviews:
     Search
   </button>
 
-</div>
-<div className="mb-3 text-white">
-  Venues Loaded: {sortedVenues.length}
-</div>
-<div style={{color:"white"}}>
-  Venues Loaded: {sortedVenues.length}
-</div>
+  </div>
+  <div className="mb-3 text-white">
+    Venues Loaded: {sortedVenues.length}
+  </div>
+  <div style={{color:"white"}}>
+    Venues Loaded: {sortedVenues.length}
+  </div>
 
-<VenueMap
-  venues={sortedVenues}
-  userCoordinates={userCoordinates}
-/>
+  <VenueMap
+    venues={sortedVenues}
+    userCoordinates={userCoordinates}
+  />
 
               <div className="mt-4 text-center">
                 <button
