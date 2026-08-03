@@ -276,26 +276,32 @@ const ITEMS_PER_PAGE = 50;
   //   }
   // ];
   useEffect(() => {
+    console.log("LOAD VENUES EFFECT");
 
-  if (!locationLoaded) return;
-  
-  if (
+    console.log("locationLoaded =", locationLoaded);
+    console.log("userCoordinates =", userCoordinates);
+    console.log("filters.city =", filters.city);
+    if (!locationLoaded) return;
+
+    if (!userCoordinates) return;
+    if (
         !filters.city &&
         !filters.country &&
         !filters.state
     ) {
         return;
     }
-
-  loadVenues();
-  loadFavorites();
+    loadVenues();
+    loadFavorites();
 
 }, [
-  filters,
-  currentPage,
-  userCoordinates,
-  locationLoaded
+    filters,
+    currentPage,
+    userCoordinates,
+    locationLoaded
 ]);
+
+  
 useEffect(() => {
 
   if (venues?.id) {
@@ -364,7 +370,18 @@ const requestCurrentLocation = async () => {
 
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
+            console.log("LIVE LAT:", lat);
+            console.log("LIVE LON:", lon);
 
+            setUserCoordinates({
+                lat,
+                lon
+            });
+
+            console.log("SETTING USER COORDINATES:", {
+                lat,
+                lon
+            });
             setLocationLoaded(true);
                //       const TEST_MODE = true;
 
@@ -600,6 +617,10 @@ const loadVenues = async () => {
     console.log("FILTERS BEFORE API:", filters);
     console.log("CITY FILTER =", filters.city);
     console.log("FILTERS BEFORE API:", filters);
+    console.log("================================");
+    console.log("USER COORDINATES:", userCoordinates);
+    console.log("FILTERS:", filters);
+    console.log("================================");
   const data = await fetchVenues({
 
   latitude: userCoordinates?.lat,
@@ -624,73 +645,57 @@ const loadVenues = async () => {
   limit: ITEMS_PER_PAGE,
 });
     const transformedData = data.map((venue: any) => ({
-      id: venue.id,
-      name: venue.name,
-      lat: venue.lat,
-      lon: venue.lon,
-      type: (venue.category || "Venue").toLowerCase(),
-      area: venue.area || "",
+  id: venue.id,
+  name: venue.name,
+  lat: venue.lat,
+  lon: venue.lon,
 
-    image:
-  venue.local_image &&
-  venue.local_image.startsWith("/uploads/")
-    ? `http://127.0.0.1:8000${venue.local_image}`
+  type: (venue.category || "Venue").toLowerCase(),
+  area: venue.area || "",
 
-    : venue.image_url &&
-      venue.image_url !== "null" &&
-      venue.image_url.trim() !== ""
+  image:
+    venue.local_image
+      ? `http://127.0.0.1:8000${venue.local_image}`
+      : venue.image_url?.startsWith("/")
+      ? `http://127.0.0.1:8000${venue.image_url}`
+      : venue.image_url,
 
-    ? venue.image_url.replace(/^http:\/\//i, "https://")
+  image_url: venue.image_url,
+  local_image: venue.local_image,
 
-    : "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800",
-      image_url: venue.image_url,
+  rating:
+    venue.rating !== null &&
+    venue.rating !== undefined &&
+    venue.reviews_count > 0
+      ? Number(venue.rating)
+      : null,
 
-      local_image: venue.local_image,
-      rating:
-  venue.rating !== null &&
-  venue.rating !== undefined &&
-  venue.reviews_count > 0
-    ? Number(venue.rating)
-    : null,
+  reviews:
+    venue.reviews_count !== null &&
+    venue.reviews_count !== undefined
+      ? Number(venue.reviews_count)
+      : 0,
 
-reviews:
-  venue.reviews_count !== null &&
-  venue.reviews_count !== undefined
-    ? Number(venue.reviews_count)
-    : 0,
+  distance: "Nearby",
+  happyHour: venue.timing || "Happy Hours Available",
+  deal: venue.deal || "Special offers available",
+  address: venue.address || "Address unavailable",
+  crowdLevel: "Medium",
 
-      distance: "Nearby",
+  foodType: venue.food_type ? [venue.food_type] : [],
+  drinkTypes: venue.drink_type ? [venue.drink_type] : [],
+  isPremium: venue.is_premium || false,
+  menuType: venue.menu_type ? [venue.menu_type] : [],
 
-      happyHour: venue.timing || "Happy Hours Available",
-
-      deal: venue.deal || "Special offers available",
-
-      address: venue.address || "Address unavailable",
-
-      crowdLevel: "Medium",
-
-      foodType: venue.food_type
-      ? [venue.food_type]
-      : [],
-
-      drinkTypes: venue.drink_type
-      ? [venue.drink_type]
-      : [],
-
-      isPremium: venue.is_premium || false,
-
-      menuType: venue.menu_type
-      ? [venue.menu_type]
-      : [],
-
-      country: venue.country || "",
-
-      state: venue.state || "",
-
-      city: venue.city || "",
-    }));
+  country: venue.country || "",
+  state: venue.state || "",
+  city: venue.city || "",
+}));
 
     setVenues(transformedData);
+    if (transformedData.length === 0) {
+      setTotalPages(currentPage);
+    }
 
   } catch (err) {
     console.error(err);
@@ -1115,7 +1120,10 @@ reviews:
     </div>
 
   ) : 
-              sortedVenues.map((venue) => (
+              sortedVenues.slice(
+                (currentPage - 1) * ITEMS_PER_PAGE,
+                currentPage * ITEMS_PER_PAGE
+              ).map((venue) => (
                 <VenueCard
                   key={venue.id}
                   venue={venue}

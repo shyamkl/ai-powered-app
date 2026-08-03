@@ -35,7 +35,9 @@ class VenueStore:
                         address,
                         city,
                         score,
-                        provider
+                        provider,
+                        image_url,
+                        image_source
                     )
 
                     VALUES
@@ -48,7 +50,9 @@ class VenueStore:
                         :address,
                         :city,
                         :score,
-                        :provider
+                        :provider,
+                        :image_url,
+                        :image_source
                     )
 
                     ON DUPLICATE KEY UPDATE
@@ -60,7 +64,9 @@ class VenueStore:
                         address=VALUES(address),
                         city=VALUES(city),
                         score=VALUES(score),
-                        provider=VALUES(provider)
+                        provider=VALUES(provider),
+                        image_url=VALUES(image_url),
+                        image_source=VALUES(image_source)
 
                     """),
 
@@ -82,8 +88,11 @@ class VenueStore:
 
                         "score": venue.get("score", 0),
 
-                        "provider": venue.get("provider", "")
+                        "provider": venue.get("provider", ""),
 
+                        "image_url": venue.get("image_url") or "",
+
+                        "image_source": venue.get("image_source") or ""
                     }
 
                 )
@@ -106,9 +115,11 @@ class VenueStore:
         self,
         lat,
         lon,
-        radius=2000
+        radius=2000,
     ):
-
+        print("VENUE STORE RADIUS =", radius)
+        print("LAT =", lat)
+        print("LON =", lon)
         # Convert metres to degrees
         lat_delta = radius / 111320
 
@@ -133,7 +144,10 @@ class VenueStore:
                         address,
                         city,
                         score,
-                        provider
+                        provider,
+
+                        image_url,
+                        image_source
 
                     FROM ai_venues
 
@@ -145,7 +159,7 @@ class VenueStore:
 
                         lon BETWEEN :min_lon AND :max_lon
 
-                    LIMIT 500
+                    LIMIT 5000
 
                     """),
 
@@ -168,7 +182,23 @@ class VenueStore:
                     reverse=True
                 )
 
-        return [dict(row) for row in rows[:200]]
+        venues = [dict(row) for row in rows[:5000]]
+
+        for venue in venues:
+
+            if (
+                not venue.get("image_source")
+                or
+                venue.get("image_source") in ["", "default"]
+                or
+                "unsplash.com" in str(venue.get("image_url"))
+            ):
+                venue["needs_image_refresh"] = True
+            else:
+                venue["needs_image_refresh"] = False
+
+        return venues
+    
     def last_update(self, city):
 
         with engine.begin() as conn:

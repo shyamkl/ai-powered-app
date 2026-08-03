@@ -1,10 +1,14 @@
 import requests
 
-from providers.base_provider import BaseProvider
-from config import GEOAPIFY_API_KEY
+from .base_provider import BaseProvider
+from ..models.venue import Venue
+from ..config import GEOAPIFY_API_KEY
 
 
 class GeoapifyProvider(BaseProvider):
+    @property
+    def provider_name(self):
+        return "Geoapify"
 
     URL = "https://api.geoapify.com/v2/places"
 
@@ -39,6 +43,9 @@ class GeoapifyProvider(BaseProvider):
         venues = []
 
         for feature in data.get("features", []):
+            if len(venues) == 0:
+                from pprint import pprint
+                pprint(feature["properties"])
 
             props = feature.get("properties", {})
 
@@ -64,14 +71,28 @@ class GeoapifyProvider(BaseProvider):
 
             venues.append({
                 "id": props.get("place_id"),
-                "name": props.get("name", "Unknown"),
+                "name": str(props.get("name", "Unknown")).strip(),
                 "lat": props.get("lat"),
                 "lon": props.get("lon"),
                 "category": category,
                 "address": props.get("formatted", ""),
-                "city": props.get("city", "")
-            })
+                "city": props.get("city", ""),
+                "wikidata": props.get("wikidata"),
+                "image": props.get("image"),
+                "wikimedia_commons":  props.get("wikimedia_commons"),
+                "osm_id": props.get("datasource", {})
+                    .get("raw", {})
+                    .get("osm_id"),
 
+                "osm_type": props.get("datasource", {})
+                                .get("raw", {})
+                                .get("osm_type"),
+            })
+            print(
+                venues[-1]["name"],
+                venues[-1]["image"],
+                venues[-1]["wikidata"]
+            )
         print("Geoapify returned:", len(venues), "venues")
 
         return venues

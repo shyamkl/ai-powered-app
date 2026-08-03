@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from providers.provider_manager import ProviderManager
-from geocoder import reverse_geocode
-from scheduler.crawler import BackgroundCrawler
+from .providers.provider_manager import ProviderManager
+from .geocoder import reverse_geocode
+from .scheduler.crawler import BackgroundCrawler
 
 
 # -----------------------------------

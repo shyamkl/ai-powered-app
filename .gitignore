@@ -20,3 +20,13 @@ build/
 
 BACKEND/uploads/
 *.sql
+# Runtime/cache files
+agent/cache/
+BACKEND/static/images/
+*.tmp
+
+# Test files (optional - keep out of production repo)
+agent/**/test_*.py
+# Project notes/recovery files
+project_structure*.txt
+agent/learning/corrections.json

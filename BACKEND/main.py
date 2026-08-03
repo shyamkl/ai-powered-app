@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+
+#Add project root to python path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
 from fastapi import FastAPI, Depends, Form, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -61,7 +68,13 @@ app.mount(
     StaticFiles(directory="uploads"),
     name="uploads"
 )
+os.makedirs("static/images", exist_ok=True)
 
+app.mount(
+    "/static",
+    StaticFiles(directory="static"),
+    name="static"
+)
 # ======================================================
 # ROUTERS
 # ======================================================

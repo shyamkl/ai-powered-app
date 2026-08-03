@@ -1,6 +1,6 @@
+from sqlalchemy import func
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from models.review import Review
 import os
 import uuid
@@ -18,9 +18,16 @@ from database import get_db
 
 from database import SessionLocal
 from models.venue import Venue
+from agent.providers.provider_manager import ProviderManager
+
 
 router = APIRouter()
 
+#--------------------------------------
+# Agent Provider Manager
+#--------------------------------------
+
+provider_manager = ProviderManager()
 
 def get_db():
     db = SessionLocal()
@@ -32,6 +39,10 @@ def get_db():
 
 @router.get("/venues")
 def get_venues(
+
+    latitude: float | None = None,
+    longitude: float | None = None,
+
     page: int = 1,
     limit: int = 50,
 
@@ -47,50 +58,36 @@ def get_venues(
     menu_type: str = None,
 
     premium_only: bool = False,
-    
 
     db: Session = Depends(get_db)
 ):
 
+    # ------------------------------------------------
+    # Start Query
+    # ------------------------------------------------
+
+    # LIVE GPS SEARCH
+    if latitude is not None and longitude is not None:
+
+        print("LIVE GPS SEARCH")
+        print(latitude, longitude)
+
+        live_venues = provider_manager.search(
+            latitude,
+            longitude,
+            radius=2000   # 2 km
+        )
+
+        return live_venues
+
+    # Otherwise use database filters
     query = db.query(Venue)
 
-    print("TOTAL VENUES:", db.query(Venue).count())
+    print("NORMAL FILTER SEARCH")
+    # ------------------------------------------------
+    # Filters
+    # ------------------------------------------------
 
-    bangkok_count = db.query(Venue).filter(
-        Venue.city == "Bangkok"
-    ).count()
-
-    print("BANGKOK COUNT:", bangkok_count)
-
-    thailand_count = db.query(Venue).filter(
-        Venue.country == "Thailand"
-    ).count()
-
-    print("THAILAND COUNT:", thailand_count)
-
-    print("COUNTRY:", country)
-    print("STATE:", state)
-    print("CITY:", city)
-    print("AREA:", area)
-    print("CATEGORY:", category)
-    # print(
-    #         db.query(Venue.city).distinct().limit(30).all()
-    #     )
-
-    # print(
-    #         db.query(Venue.category).distinct().limit(30).all()
-    #     )
-
-    # print(
-    #         db.query(Venue.area).distinct().limit(30).all()
-    #     )
-    # print(
-    #         db.query(Venue.state).distinct().limit(30).all()
-    #     )
-    # COUNTRY FILTER
-
-
-    # COUNTRY
     if country:
         query = query.filter(Venue.country == country)
 
@@ -102,104 +99,131 @@ def get_venues(
 
     if area:
         query = query.filter(
-        Venue.area.ilike(f"%{area}%") |
-        (Venue.address.ilike(f"%{area}%"))
-    )
-        
+            Venue.area.ilike(f"%{area}%")
+            |
+            Venue.address.ilike(f"%{area}%")
+        )
+
     if search:
         query = query.filter(
-        Venue.name.ilike(f"%{search}%")
-    )
-        
+            Venue.name.ilike(f"%{search}%")
+        )
+
     if category:
         query = query.filter(
-        func.lower(Venue.category) == category.lower()
-    )
+            func.lower(Venue.category) == category.lower()
+        )
 
     if food_type:
-        query = query.filter(Venue.food_type == food_type)
+        query = query.filter(
+            Venue.food_type == food_type
+        )
 
     if drink_type:
-        query = query.filter(Venue.drink_type == drink_type)
+        query = query.filter(
+            Venue.drink_type == drink_type
+        )
 
     if menu_type:
-        query = query.filter(Venue.menu_type == menu_type)
+        query = query.filter(
+            Venue.menu_type == menu_type
+        )
 
     if premium_only:
-        query = query.filter(Venue.is_premium == True)
+        query = query.filter(
+            Venue.is_premium == True
+        )
 
+    # ------------------------------------------------
+    # Pagination
+    # ------------------------------------------------
 
-    print("COUNTRY:", country)
-    print("CITY:", city)
-    print("AREA:", area)
-    print("CATEGORY:", category)
-    # PAGINATION
     offset = (page - 1) * limit
 
-    print(
-    query.statement.compile(
-        compile_kwargs={"literal_binds": True}
+    rows = (
+        query
+        .offset(offset)
+        .limit(limit)
+        .all()
     )
-)
-    print("FINAL COUNTRY =", repr(country))
-    print("FINAL STATE =", repr(state))
-    print("FINAL CITY =", repr(city))
-    print("FINAL AREA =", repr(area))
-    print("FINAL CATEGORY =", repr(category))
-    print(str(query))
-    venues = query.offset(offset).limit(limit).all()
+    for r in rows:
+        print(r)
+        venues = []
 
-   
+    for row in rows:
+
+        # GPS search returns (Venue, distance)
+        if latitude is not None and longitude is not None:
+            venue = row[0]
+
+        else:
+            venue = row
+
+        venues.append(venue)
+
+    # ------------------------------------------------
+    # Build Response
+    # ------------------------------------------------
 
     result = []
 
     for v in venues:
-
+        print(type(v))
+        print(v)
         reviews = (
             db.query(Review)
-            .filter(Review.venue_id == v.id)
+            .filter(
+                Review.venue_id == v.id
+            )
             .all()
         )
 
         if reviews:
-                highest_rating = max(r.rating for r in reviews)
-                reviews_count = len(reviews)
+
+            highest_rating = max(
+                r.rating for r in reviews
+            )
+
+            reviews_count = len(reviews)
+
         else:
-                highest_rating = None
-                reviews_count = 0
+
+            highest_rating = None
+            reviews_count = 0
 
         result.append({
-                "id": v.id,
-                "name": v.name,
 
-                "category": v.category,
+            "id": v.id,
+            "name": v.name,
 
-                "image_url": v.image_url,
-                "local_image": v.local_image,
+            "category": v.category,
 
-                "address": v.address,
+            "image_url": v.image_url,
+            "local_image": v.local_image,
 
-                "city": v.city,
-                "state": v.state,
-                "country": v.country,
+            "address": v.address,
 
-                "area": v.area,
+            "city": v.city,
+            "state": v.state,
+            "country": v.country,
 
-                "deal": v.deal,
-                "timing": v.timing,
+            "area": v.area,
 
-                "food_type": v.food_type,
-                "menu_type": v.menu_type,
-                "drink_type": v.drink_type,
+            "deal": v.deal,
+            "timing": v.timing,
 
-                "is_premium": v.is_premium,
+            "food_type": v.food_type,
+            "drink_type": v.drink_type,
+            "menu_type": v.menu_type,
 
-                # REAL REVIEW DATA
-                "rating": highest_rating,
-                "reviews_count": reviews_count,
+            "is_premium": v.is_premium,
 
-                "lat": v.lat,
-                "lon": v.lon
+            "rating": highest_rating,
+            "reviews_count": reviews_count,
+
+            "lat": v.lat,
+            "lon": v.lon
+
         })
 
     return result

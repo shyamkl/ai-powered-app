@@ -83,7 +83,10 @@ export async function fetchVenues(filters?: any) {
 
   params.append("page", String(filters?.page || 1));
   params.append("limit", String(filters?.limit || 50));
-
+  console.log(
+    "REQUEST URL:",
+    `${API_BASE_URL}/venues?${params.toString()}`
+  );
   const response = await fetch(
     `${API_BASE_URL}/venues?${params.toString()}`
   );

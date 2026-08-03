@@ -4,7 +4,12 @@ from sqlalchemy.orm import sessionmaker
 
 DATABASE_URL = "mysql+pymysql://root:463165Shyam@127.0.0.1/restaurant_ai_backup"
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,)
 
 SessionLocal = sessionmaker(
     autocommit=False,

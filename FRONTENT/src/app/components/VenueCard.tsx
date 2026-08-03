@@ -39,7 +39,12 @@ export function VenueCard({
   isFavorited,
   onViewDetails,
 }: VenueCardProps) {
-
+  console.log(
+    "CARD",
+    venue.name,
+    venue.image_url,
+    venue.local_image
+  );
   return (
     <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
 
@@ -78,32 +83,24 @@ export function VenueCard({
 /> */}
 <img
   src={
-    venue.local_image
-      ? `http://127.0.0.1:8000/${venue.local_image}`
-      : venue.image_url
-      ? venue.image_url.replace(/^http:\/\//i, "https://")
-      : "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800"
+  venue.image ||
+  "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800"
   }
   alt={venue.name}
   className="w-full h-48 object-cover rounded"
   onError={(e) => {
-    const target = e.currentTarget;
+  const target = e.currentTarget;
 
-    // If uploaded image fails, try original image
-    if (
-      venue.image_url &&
-      target.src.includes("/uploads/")
-    ) {
-      target.src = venue.image_url.replace(
-        /^http:\/\//i,
-        "https://"
-      );
-      return;
-    }
+  if (venue.image_url && target.src.includes("/uploads/")) {
+    target.src = venue.image_url.startsWith("/")
+      ? `http://127.0.0.1:8000${venue.image_url}`
+      : venue.image_url.replace(/^http:\/\//i, "https://");
+    return;
+  }
 
-    target.onerror = null;
-    target.src =
-      "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800";
+  target.onerror = null;
+  target.src =
+    "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800";
   }}
 />
         {/* TOP RIGHT BUTTONS */}

@@ -1,18 +1,29 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
-from providers.overpass_provider import OverpassProvider
-from providers.geoapify_provider import GeoapifyProvider
-from services.deduplicator import deduplicate
-from intelligence.ranking import ProviderRanker
-from config import MAX_VENUES_PER_SEARCH, MAX_PARALLEL_PROVIDERS
-from intelligence.scorer import VenueScorer
-from providers.cache.cache_manager import CacheManager
-from database.venue_store import VenueStore
-from database.search_logger import SearchLogger
-from services.venue_filter import is_valid_venue
-from intelligence.category_normalizer import categoryNormalizer
-from intelligence.venue_validator import is_valid_category
+from .geoapify_provider import GeoapifyProvider
+from .overpass_provider import OverpassProvider
+
+from ..config import (
+    MAX_PARALLEL_PROVIDERS,
+    MAX_VENUES_PER_SEARCH,
+)
+
+from ..services.deduplicator import deduplicate
+from ..services.venue_filter import is_valid_venue
+
+from ..intelligence.scorer import VenueScorer
+from ..intelligence.ranking import ProviderRanker
+from ..intelligence.category_normalizer import categoryNormalizer
+from ..intelligence.venue_validator import is_valid_category
+
+from .cache.cache_manager import CacheManager
+
+from ..database.venue_store import VenueStore
+from ..database.search_logger import SearchLogger
+
+from agent.services.image_service import ImageService
+
 
 class ProviderManager:
 
@@ -22,17 +33,31 @@ class ProviderManager:
             GeoapifyProvider(),
             OverpassProvider(),
         ]
-        self.scorer = VenueScorer()
-        self.stats = {}
-        self.ranker = ProviderRanker()
-        self.scorer = VenueScorer()
+
         self.cache = CacheManager()
+
         self.store = VenueStore()
-        self.normalizer = categoryNormalizer()
+
         self.logger = SearchLogger()
+
+        self.scorer = VenueScorer()
+
+        self.normalizer = categoryNormalizer()
+
+        self.image_service = ImageService()
+
+        self.ranker = ProviderRanker()
+
+        self.stats = {}
+
+    # ---------------------------------------------------
+    # Provider Statistics
+    # ---------------------------------------------------
+
     def update_stats(self, provider_name, venue_count):
 
         if provider_name not in self.stats:
+
             self.stats[provider_name] = {
                 "requests": 0,
                 "venues": 0
@@ -40,6 +65,10 @@ class ProviderManager:
 
         self.stats[provider_name]["requests"] += 1
         self.stats[provider_name]["venues"] += venue_count
+
+    # ---------------------------------------------------
+    # Search One Provider
+    # ---------------------------------------------------
 
     def search_provider(
         self,
@@ -77,6 +106,11 @@ class ProviderManager:
 
         except Exception as e:
 
+            print(
+                provider.__class__.__name__,
+                e
+            )
+
             self.ranker.update(
                 provider.__class__.__name__,
                 0,
@@ -84,9 +118,9 @@ class ProviderManager:
                 False
             )
 
-            print(provider.__class__.__name__, e)
-
             return []
+
+    # ---------------------------------------------------
 
     def get_ranked_providers(self):
 
@@ -98,29 +132,38 @@ class ProviderManager:
             reverse=True
         )
 
-    def search(self, lat, lon, radius=2000):
+    def search(self, lat, lon, radius=5000):
+
         total_start = time.time()
 
-        print("1. search started")
-        # ----------------------------
-# Try local database first
-# ----------------------------
+        print("1. Search started")
+
+        # --------------------------------------------------
+        # DATABASE CACHE
+        # --------------------------------------------------
 
         cached = self.store.nearby(
             lat,
             lon,
-            radius
+            radius = 5000
         )
 
-        if len(cached) >= MAX_VENUES_PER_SEARCH:
+        if cached:
 
-            print(
-                "Database hit:",
-                len(cached),
-                "venues"
-            )
-
+            print("=" * 60)
+            print("DATABASE HIT")
+            print(f"Loaded {len(cached)} venues from MySQL")
+            for v in cached[:10]:
+                print(
+                    "DEBUG IMAGE:",
+                    v.get("name"),
+                    v.get("image_url"),
+                    v.get("image_source"),
+                    v.get("needs_image_refresh")
+                )
+                print("=" * 60)
             for venue in cached:
+
                 venue["score"] = self.scorer.score(venue)
 
             cached.sort(
@@ -140,11 +183,46 @@ class ProviderManager:
                 database_hit=True
             )
 
-            print("Search time:", round(elapsed,3),"seconds")
+            print("Returning database venues only.")
 
+            for venue in cached:
+
+                if venue.get("needs_image_refresh"):
+
+                    image = self.image_service.get_image(venue)
+
+                    venue["image_url"] = image
+
+                    if image:
+
+                        if image.startswith("http"):
+                            venue["image_source"] = "pixabay"
+
+                        elif image.startswith("/static"):
+                            venue["image_source"] = "local"
+
+                        else:
+                            venue["image_source"] = "default"
+
+                    else:
+                        venue["image_source"] = "default"
+
+            self.store.save_many(cached)
+            print("AFTER SAVE:")
+            for v in cached[:5]:
+                print(
+                v["name"],
+                v["image_url"],
+                v["image_source"]
+                )
             return cached[:MAX_VENUES_PER_SEARCH]
+        
+            # print("Database miss")
 
-        print("Database miss")
+        # --------------------------------------------------
+        # MEMORY CACHE
+        # --------------------------------------------------
+
         cached = self.cache.get(
             lat,
             lon,
@@ -153,33 +231,33 @@ class ProviderManager:
 
         if cached is not None:
 
-            print("CACHE HIT")
-
-            elapsed = time.time() - total_start
+            print("Cache hit")
 
             self.logger.log(
                 latitude=lat,
                 longitude=lon,
                 radius=radius,
-                response_time=elapsed,
+                response_time=time.time() - total_start,
                 venue_count=len(cached),
                 cache_hit=True,
                 database_hit=False
             )
 
-            print("Search time:", round(elapsed,3),"seconds")
-
             return cached
 
-        print("CACHE MISS")
-        total_start = time.time()
+        print("Cache miss")
+
+        # --------------------------------------------------
+        # PROVIDER SEARCH
+        # --------------------------------------------------
+
+        providers = self.get_ranked_providers()
+
         all_results = []
 
-        ranked = self.get_ranked_providers()
-
-        print("2. providers:", len(ranked))
-
-        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_PROVIDERS) as executor:
+        with ThreadPoolExecutor(
+            max_workers=MAX_PARALLEL_PROVIDERS
+        ) as executor:
 
             futures = [
 
@@ -191,126 +269,176 @@ class ProviderManager:
                     radius
                 )
 
-                for provider in ranked[:MAX_PARALLEL_PROVIDERS]
-
+                for provider in providers
             ]
-
-            print("3. futures submitted")
 
             for future in as_completed(futures):
 
-                print("4. future completed")
-
                 results = future.result()
 
-                print("5. got", len(results), "venues")
-
                 all_results.extend(results)
-                print("6. deduplicating")
+
                 if len(all_results) >= MAX_VENUES_PER_SEARCH:
                     break
-        print("Deduplicating", len(all_results)) 
-        provider_time = time.time()
 
         print(
-            "Provider fetch:",
-            round(provider_time - total_start, 2),
-            "seconds"
-        )         
+            "Fetched",
+            len(all_results),
+            "venues"
+        )
+
+        # --------------------------------------------------
+        # FILTER INVALID
+        # --------------------------------------------------
+
         filtered = []
 
         for venue in all_results:
 
-            if is_valid_venue(venue):
-                filtered.append(venue)
-
-            print(
-                "Filtered:",
-                len(filtered),
-                "of",
-                len(all_results)
-            )    
-
-            clean = deduplicate(filtered)
-        
-        print("Deduplicated:", len(clean))
-        print("scoring...")
-        dedupe_time = time.time()
-
-        for venue in clean:
-            
             venue["name"] = str(
-                venue.get("name","")
-            )
+                venue.get("name", "")
+            ).strip()
 
             venue["category"] = str(
                 venue.get("category", "")
-            )
+            ).strip()
 
             venue["address"] = str(
                 venue.get("address", "")
-            )
+            ).strip()
 
             venue["city"] = str(
                 venue.get("city", "")
-            )
+            ).strip()
+
+            if is_valid_venue(venue):
+                filtered.append(venue)
 
         print(
-            "Deduplicate:",
-            round(dedupe_time - provider_time, 2),
-            "seconds"
+            "Filtered:",
+            len(filtered)
         )
+
+        # --------------------------------------------------
+        # REMOVE DUPLICATES
+        # --------------------------------------------------
+
+        clean = deduplicate(filtered)
+
+        print(
+            "Deduplicated:",
+            len(clean)
+        )
+
+        # --------------------------------------------------
+        # SCORE + IMAGES
+        # --------------------------------------------------
+
+        scored = []
+
         for venue in clean:
+
             category = self.normalizer.normalize(
                 venue.get("category", "")
             )
+
             venue["category"] = category
 
             if not is_valid_category(category):
                 continue
+
+            image = None
+
+            if not venue.get("image_url"):
+                image = self.image_service.get_image(venue)
+                venue["image_url"] = image
+            else:
+                image = venue["image_url"]
+
+
+            venue["image_source"] = (
+                "pixabay"
+                if image and (
+                    image.startswith("http")
+                    or image.startswith("/static/images")
+                )
+                else "default"
+            )
+
             venue["score"] = self.scorer.score(venue)
-        print("Scoring complete")
-        clean.sort(
 
-            key=lambda v: v["score"],
+            print(
+                venue["name"],
+                "->",
+                venue["image_url"]
+            )
 
+            scored.append(venue)
+
+        scored.sort(
+            key=lambda x: x["score"],
             reverse=True
-
         )
-        print("Saving to database...")
+            # --------------------------------------------------
+        # SAVE TO DATABASE
+        # --------------------------------------------------
 
-        self.store.save_many(clean)
+        print("Saving", len(scored), "venues to database...")
+
+        needs_save = any(not v.get("id") for v in clean)
+
+        if needs_save:
+            self.store.save_many(clean)
 
         print(
             "Database now contains",
             self.store.count(),
             "venues"
         )
-        print("9. returning", len(clean))
-        end = time.time()
 
-        elapsed = end - total_start
+        # --------------------------------------------------
+        # SAVE TO CACHE
+        # --------------------------------------------------
 
-        print(
-            "Total:",
-            round(elapsed,2),
-            "seconds"
+        self.cache.set(
+            lat,
+            lon,
+            radius,
+            scored
         )
+
+        # --------------------------------------------------
+        # LOG SEARCH
+        # --------------------------------------------------
+
+        elapsed = time.time() - total_start
 
         self.logger.log(
             latitude=lat,
             longitude=lon,
             radius=radius,
             response_time=elapsed,
-            venue_count=len(clean),
+            venue_count=len(scored),
             cache_hit=False,
             database_hit=False
         )
 
-        return clean[:MAX_VENUES_PER_SEARCH]
-                # print("Database miss")
+        print(
+            "Total:",
+            round(elapsed, 2),
+            "seconds"
+        )
 
-                # all_results = []
+        print(
+            "Returning",
+            len(scored),
+            "venues"
+        )
+
+        return scored[:MAX_VENUES_PER_SEARCH]
+
+        # --------------------------------------------------
+
     def get_stats(self):
         return self.stats
 
@@ -318,4 +446,4 @@ class ProviderManager:
         return self.ranker.best_provider()
 
     def get_provider_scores(self):
-        return self.ranker.history 
+        return self.ranker.history    

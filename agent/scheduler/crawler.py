@@ -1,7 +1,7 @@
 import threading
 import time
 from datetime import datetime, timedelta
-from scheduler.city_queue import city_queue
+from .city_queue import city_queue
 
 
 class BackgroundCrawler:

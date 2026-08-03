@@ -29,11 +29,14 @@ ALLOWED_CATEGORIES = {
 
 BLOCKED_WORDS = {
     "internet cafe",
+    "internet_cafe",
     "cyber cafe",
+    "cyber_cafe",
     "cybercafe",
     "internet center",
     "internet centre",
     "gaming cafe",
+    "gaming_cafe",
     "gaming center",
     "gaming centre",
     "computer centre", 

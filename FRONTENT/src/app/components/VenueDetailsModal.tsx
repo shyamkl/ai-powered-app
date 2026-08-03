@@ -266,7 +266,7 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
               <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">{venue.type}</span>
               <div style={{ marginTop: "10px" }}>
 
-  <label
+  {/* <label
   className="
     flex items-center justify-center
     bg-blue-600/90
@@ -283,7 +283,7 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
     min-w-[120px]
   "
 >
-    Edit Image
+    Edits Image
 
     <input
       type="file"
@@ -293,7 +293,7 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
         handleImageUpload(e, venue.id)
       }
     />
-  </label>
+  </label> */}
 
 </div>
             </div>
