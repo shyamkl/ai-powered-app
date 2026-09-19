@@ -1,5 +1,6 @@
 import re
 from babel import Locale, localedata
+from babel.core import UnknownLocaleError
 from babel.numbers import get_currency_symbol
 from decimal import Decimal, InvalidOperation
 
@@ -8,7 +9,19 @@ from babel.numbers import parse_decimal
 
 class CurrencyRegistry:
 
+    AMOUNT_PATTERN = r"\d+(?:[.,]\d+)*"
+
+    LOCALE_ALIASES = {
+        "en_TH": "th_TH",
+        "en_IN": "en_IN",
+        "en_US": "en_US",
+        "de_DE": "de_DE",
+        "ja_JP": "ja_JP",
+    }
+
     def __init__(self, locale: str = "en"):
+        locale = self.LOCALE_ALIASES.get(locale, locale)
+
         self.locale = Locale.parse(locale)
 
         self.currencies = self.locale.currencies
@@ -132,12 +145,13 @@ class CurrencyRegistry:
     #         return expressions  
 
     def parse_amount(self, amount_text: str, locale: str = "en_US")-> Decimal | None:
+        locale = self.LOCALE_ALIASES.get(locale, locale)
         try:
             return parse_decimal(
                 amount_text,
                 locale=locale
             )      
-        except(InvalidOperation, ValueError):
+        except(InvalidOperation, ValueError, UnknownLocaleError):
             return None
 
 
@@ -160,7 +174,7 @@ class CurrencyRegistry:
                 r"(?<![A-Za-z])"
                 + re.escape(symbol)
                 + r"\s*"
-                + r"(\d+(?:[.,]\d+)?)"
+                + r"(" + self.AMOUNT_PATTERN + r")"
             )
 
             for match in re.finditer(
@@ -197,7 +211,7 @@ class CurrencyRegistry:
         for symbol in self.symbol_to_codes:
 
             pattern = (
-                r"(\d+(?:[.,]\d+)?)"
+                r"(" + self.AMOUNT_PATTERN + r")"
                 + r"\s*"
                 + re.escape(symbol)
                 + r"(?![A-Za-z])"
@@ -241,7 +255,7 @@ class CurrencyRegistry:
                 + re.escape(code)
                 + r"\b"
                 + r"\s*"
-                + r"(\d+(?:[.,]\d+)?)"
+                + r"(" + self.AMOUNT_PATTERN + r")"
             )
 
             for match in re.finditer(
@@ -276,7 +290,7 @@ class CurrencyRegistry:
         for code in self.currency_codes:
 
             pattern = (
-                r"(\d+(?:[.,]\d+)?)"
+                r"(" + self.AMOUNT_PATTERN + r")"
                 + r"\s*"
                 + r"\b"
                 + re.escape(code)

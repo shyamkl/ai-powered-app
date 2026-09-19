@@ -1,8 +1,19 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
+class MoneyExpression(BaseModel):
+    """
+      Structured representation of a detected money expression. 
+    """
+    raw:str
+    amount:Decimal
+    symbol:Optional[str] = None
+    currency_candidates : list[str] = Field(default_factory=list)
+    position: str
+    currency: Optional[str] = None
 
 class DealBase(BaseModel):
     """
@@ -13,9 +24,10 @@ class DealBase(BaseModel):
     title: str
     description: Optional[str] = None
     deal_type: str = "unknown"
-    category: Optional[str] = None
-    discount_value: Optional[str] = None
+    category: Optional[str | list[str]] = None
+    discount_value: Optional[Decimal] = None
     discount_unit: Optional[str] = None
+    money_expressions: list[MoneyExpression] = Field(default_factory=list)
     items: list[str] = Field(default_factory=list)
     days: list[str] = Field(default_factory=list)
     start_time: Optional[str] = None

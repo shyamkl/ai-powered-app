@@ -1,12 +1,17 @@
 import re
 
 from .keywords import CATEGORY_KEYWORDS
+from .currency import CurrencyRegistry
+from .currency_context import CurrencyContextResolver
 
 
 class DealNormalizer:
     """
     Converts deal text into structured information.
     """
+    def __init__(self):
+        self.currency_registry = CurrencyRegistry()
+        self.currency_context = CurrencyContextResolver()
 
     DAYS = [
         "Monday",
@@ -17,8 +22,62 @@ class DealNormalizer:
         "Saturday",
         "Sunday",
     ]
+    def find_amount_discounts(self, text:str)-> list[dict]:
+        matches = []
 
-    def normalize(self, text: str) -> dict:
+        pattern = r"(₹|\$|€|£)\s*(\d+(?:\.\d+)?)\s*off"
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            currency = match.group(1)
+            amount = float(match.group(2))
+
+            if currency == "₹":
+                unit = "INR"
+            elif currency == "$":
+                unit =  "USD"
+            elif currency == "€":
+                unit = "EUR"
+            elif currency == "£":
+                unit = "GBP"
+
+            matches.append(
+                {
+                    "discount_value": amount,
+                    "discount_unit" : unit,
+                }
+            )                  
+        return matches
+
+    def find_money_expressions(
+        self,
+        text: str,
+        country_code: str | None = None,
+        locale: str = "en_Us"
+    )-> list[dict]:
+        """
+        Find money expressions and resolve their currency
+        using optional country context.
+        """
+
+        expressions = self.currency_registry.find_money_expressions(
+            text,
+            locale=locale
+        )
+
+        resolved_expressions = []
+
+        for expression in expressions:
+
+            resolved = self.currency_context.resolve_money_expression(
+                expression,
+                country_code=country_code
+            )
+
+            resolved_expressions.append(resolved)
+
+        return resolved_expressions    
+
+        
+    def normalize(self, text: str, country_code: str | None = None, locale: str = "en_Us") -> dict:
         """
         Convert one deal sentence into structured information.
         """
@@ -34,6 +93,7 @@ class DealNormalizer:
             "start_time": None,
             "end_time": None,
             "offers": [],
+            "money_expressions": [],
         }
 
         lower_text = text.lower()
@@ -56,6 +116,13 @@ class DealNormalizer:
 
         elif "%" in text and "off" in lower_text:
             result["deal_type"] = "percentage_discount"
+
+        elif self.find_money_expressions(
+            text,
+            country_code=country_code,
+            locale=locale,
+        ):
+            result["deal_type"] = "fixed_price"
 
         # -------------------------------------------------
         # DISCOUNT
@@ -149,6 +216,17 @@ class DealNormalizer:
         # -------------------------------------------------
 
         result["offers"] = self.find_offers(text)
+
+        # -------------------------------------------------
+        # MONEY EXPRESSIONS
+        # -------------------------------------------------
+
+
+        result["money_expressions"] = self.find_money_expressions(
+            text,
+            country_code = country_code,
+            locale=locale
+        )
 
         return result
 
