@@ -2,14 +2,18 @@ from sqlalchemy import create_engine, text
 from math import cos
 
 
-DATABASE_URL = "mysql+pymysql://root:463165Shyam@127.0.0.1/restaurant_ai_backup"
+from agent.config import AGENT_DATABASE_URL
 
+DATABASE_URL = AGENT_DATABASE_URL
+
+if not DATABASE_URL:
+    raise RuntimeError(
+        "AGENT_DATABASE_URL is missing. Configure it in the project-root .env file."
+    )
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True
+    pool_pre_ping=True,
 )
-
-
 class VenueStore:
 
     def save_many(self, venues):
@@ -34,6 +38,8 @@ class VenueStore:
                         category,
                         address,
                         city,
+                        country,
+                        website,
                         score,
                         provider,
                         image_url,
@@ -49,6 +55,8 @@ class VenueStore:
                         :category,
                         :address,
                         :city,
+                        :country,
+                        :website,
                         :score,
                         :provider,
                         :image_url,
@@ -63,6 +71,8 @@ class VenueStore:
                         category=VALUES(category),
                         address=VALUES(address),
                         city=VALUES(city),
+                        country=VALUES(country),
+                        website=VALUES(website),
                         score=VALUES(score),
                         provider=VALUES(provider),
                         image_url=VALUES(image_url),
@@ -86,6 +96,10 @@ class VenueStore:
 
                         "city": venue.get("city", ""),
 
+                        "country": venue.get("country", ""),
+
+                        "website": venue.get("website", ""),
+
                         "score": venue.get("score", 0),
 
                         "provider": venue.get("provider", ""),
@@ -96,7 +110,6 @@ class VenueStore:
                     }
 
                 )
-
     def count(self):
 
         with engine.begin() as conn:
@@ -143,6 +156,8 @@ class VenueStore:
                         category,
                         address,
                         city,
+                        country,
+                        website,
                         score,
                         provider,
 
@@ -222,3 +237,22 @@ class VenueStore:
         ).scalar()
 
         return result
+
+    def update_website(self, venue_id, website):
+
+        if not venue_id or not website:
+            return
+
+        with engine.begin() as conn:
+
+            conn.execute(
+                text("""
+                    UPDATE ai_venues
+                    SET website = :website
+                    WHERE id = :venue_id
+                """),
+                {
+                    "venue_id": str(venue_id),
+                    "website": website.strip(),
+                }
+            )

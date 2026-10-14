@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from database import SessionLocal
-from models.venue import Venue
+from  BACKEND.database import SessionLocal
+from  BACKEND.models.venue import Venue
 import numpy as np
 import json
 from openai import OpenAI

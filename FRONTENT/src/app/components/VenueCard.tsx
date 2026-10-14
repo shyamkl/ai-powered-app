@@ -3,7 +3,7 @@ import { uploadVenueImage } from "../api";
 
 interface VenueCardProps {
   venue: {
-    id: number;
+    id: string | number;
     name: string;
     type: string;
     area?: string;
@@ -25,7 +25,9 @@ interface VenueCardProps {
 
   isPremiumMember: boolean;
 
-  onFavorite: (id: number) => void;
+  onFavorite: (id: string | number) => void;
+
+  deals: any[];
 
   isFavorited: boolean;
 
@@ -38,6 +40,7 @@ export function VenueCard({
   onFavorite,
   isFavorited,
   onViewDetails,
+   deals,
 }: VenueCardProps) {
   console.log(
     "CARD",
@@ -226,11 +229,31 @@ export function VenueCard({
 
         {/* DEAL */}
         <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg mb-3">
+          {deals.length > 0 ? (
+            <div>
+              <p className="text-sm font-medium">
+                {deals[0].title}
+              </p>
 
-          <p className="text-sm font-medium">
-            {venue.deal}
-          </p>
-          
+              {deals[0].description && (
+                <p className="text-xs text-gray-600 mt-1">
+                  {deals[0].description}
+                </p>
+              )}
+
+              {(deals[0].start_time || deals[0].end_time) && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {deals[0].start_time || ""}
+                  {deals[0].start_time && deals[0].end_time ? " - " : ""}
+                  {deals[0].end_time || ""}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm font-medium">
+              {venue.deal}
+            </p>
+          )}
         </div>
 
         {/* FOOD TAGS */}

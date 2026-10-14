@@ -8,7 +8,7 @@ from sqlalchemy import (
 
 from sqlalchemy.sql import func
 
-from database import Base
+from BACKEND.database import Base
 
 
 class Review(Base):

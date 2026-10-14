@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Text, Boolean
-from database import Base
+from BACKEND.database import Base
 from fastapi import UploadFile, File, Form
 import shutil
 import os

@@ -1,7 +1,7 @@
 const API_BASE_URL = "http://127.0.0.1:8000";
 
 export interface Venue {
-  id: number;
+  id: string | number;
   name: string;
   category: string;
   image_url: string;
@@ -123,10 +123,10 @@ export const createReview = async (formData: FormData) => {
 // FETCH REVIEWS
 // ======================
 
-export const fetchReviews = async (venueId: number) => {
+export const fetchReviews = async (venueId: string | number) => {
 
   const response = await fetch(
-    `${API_BASE_URL}/reviews/${venueId}`
+    `${API_BASE_URL}/reviews/${encodeURIComponent(String(venueId))}`
   );
 
   if (!response.ok) {
@@ -241,4 +241,80 @@ export const uploadVenueImage = async (
   }
 
   return response.json();
+};
+
+// ======================
+// FETCH VENUE DEALS
+// ======================
+
+export interface VenueDeal {
+   id: number;
+  venue_id: string;
+  title: string;
+  description?: string | null;
+  deal_type: string;
+  category?: string | null;
+  discount_value?: string | null;
+  discount_unit?: string | null;
+  items?: string[];
+  days?: string[];
+  start_time?: string | null;
+  end_time?: string | null;
+  source_url: string;
+  source_type: string;
+  confidence?: number | null;
+  is_active?: boolean;
+  verified_at?: string | null;
+  first_seen_at?: string | null;
+  last_seen_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+
+export const fetchVenueDeals = async (
+  venueId: string | number
+): Promise<VenueDeal[]> => {
+  const response = await fetch(
+    `${API_BASE_URL}/deals/${encodeURIComponent(String(venueId))}`
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch venue deals");
+  }
+
+  const data = await response.json();
+
+  return data.map((deal: any) => {
+    let items: string[] = [];
+    let days: string[] = [];
+
+    try {
+      if (Array.isArray(deal.items)) {
+        items = deal.items;
+      } else if (typeof deal.items === "string") {
+        const parsed = JSON.parse(deal.items);
+        items = Array.isArray(parsed) ? parsed : [];
+      }
+    } catch {
+      items = [];
+    }
+
+    try {
+      if (Array.isArray(deal.days)) {
+        days = deal.days;
+      } else if (typeof deal.days === "string") {
+        const parsed = JSON.parse(deal.days);
+        days = Array.isArray(parsed) ? parsed : [];
+      }
+    } catch {
+      days = [];
+    }
+
+    return {
+      ...deal,
+      items,
+      days,
+    };
+  });
 };

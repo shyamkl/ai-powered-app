@@ -12,14 +12,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 from pydantic import BaseModel
 
-from database import Base, engine, SessionLocal
-from models import Review
-from models.venue import Venue
-from models.review import Review
-from models.favorite import Favorite
+from BACKEND.database import Base, engine, SessionLocal
+from  BACKEND.models.venue import Venue
+from  BACKEND.models.review import Review
+from  BACKEND.models.favorite import Favorite
 from fastapi import UploadFile, File
 
-from routes.venues import router as venues_router
+from BACKEND.routes.venues import router as venues_router
+from BACKEND.routes.deals import router as deals_router
 
 import uuid
 import os
@@ -80,6 +80,7 @@ app.mount(
 # ======================================================
 
 app.include_router(venues_router)
+app.include_router(deals_router)
 
 # ======================================================
 # REQUEST MODELS
@@ -107,7 +108,7 @@ def home():
 
 @app.get("/reviews/{venue_id}")
 def get_reviews(
-    venue_id: int,
+    venue_id: str,
     db: Session = Depends(get_db)
 ):
 

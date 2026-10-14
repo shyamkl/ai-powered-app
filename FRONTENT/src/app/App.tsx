@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect  } from 'react';
+import { useState, useMemo, useRef, useEffect  } from 'react';
 import { Menu, X, User, Briefcase, MapPin, Star, Crown, QrCode, Mail, Phone, Search, Map, Box } from 'lucide-react';
 import { VenueCard } from './components/VenueCard';
 import { FilterPanel } from './components/FilterPanel';
@@ -7,7 +7,7 @@ import { AIChatbot } from './components/AIChatbot';
 import { LoginModal } from './components/LoginModal';
 import { PremiumModal } from './components/PremiumModal';
 import { VenueDetailsModal } from './components/VenueDetailsModal';
-import { fetchVenues, Venue, fetchFavorites } from './services/api';
+import { fetchVenues, Venue, fetchFavorites, fetchVenueDeals } from './services/api';
 import VenueMap from './components/venueMap';
 import 'leaflet/dist/leaflet.css';
 import { reverseGeocode } from "./services/geocoding";
@@ -72,7 +72,8 @@ localStorage.setItem(
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
   const [venueDetailsModalOpen, setVenueDetailsModalOpen] = useState(false);
   const [selectedVenue, setSelectedVenue] = useState<typeof venues[0] | null>(null);
-  const [favorites, setFavorites] = useState<number[]>([]);
+  const [favorites, setFavorites] = useState<(string | number)[]>([]);
+  const [venueDeals, setVenueDeals] = useState<Record<string, any[]>>({});
   // const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
   const [sortBy, setSortBy] = useState('distance');
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
@@ -104,6 +105,38 @@ localStorage.setItem(
     showPremiumOnly: false
   });
   const [venues, setVenues] = useState<Venue[]>([]);
+//    useEffect(() => {
+//   if (venues.length === 0) {
+//     setVenueDeals({});
+//     return;
+//   }
+
+//   const loadVenueDeals = async () => {
+//     try {
+//       const results = await Promise.all(
+//         venues.map(async (venue) => {
+//           try {
+//             const deals = await fetchVenueDeals(venue.id);
+//             return [String(venue.id), deals] as const;
+//           } catch (error) {
+//             console.error(
+//               `Failed to load deals for venue ${venue.id}:`,
+//               error
+//             );
+//             return [String(venue.id), []] as const;
+//           }
+//         })
+//       );
+
+//       setVenueDeals(Object.fromEntries(results));
+//     } catch (error) {
+//       console.error("Failed to load venue deals:", error);
+//       setVenueDeals({});
+//     }
+//   };
+
+//   loadVenueDeals();
+// }, [venues]);
 const [loading, setLoading] = useState(true);
 const [error, setError] = useState('');
   const mapSectionRef = useRef<HTMLDivElement>(null);
@@ -573,7 +606,7 @@ const loadFavorites = async () => {
   }
 
 };
-const handleFavorite = async (venueId: number) => {
+const handleFavorite = async (venueId: string | number) => {
 
   try {
 
@@ -814,7 +847,8 @@ const loadVenues = async () => {
   //   return true;
   // });
 
-  const sortedVenues = [...venues]
+  const sortedVenues = useMemo(()=>{
+    return [...venues]
   .filter((venue) => {
 
     // SHOW ONLY FAVORITES
@@ -835,13 +869,64 @@ const loadVenues = async () => {
         return b.rating - a.rating;
 
       case "deals":
-        return b.reviews - a.reviews;
+        return (
+          (venueDeals[String(b.id)]?.length || 0) -
+          (venueDeals[String(a.id)]?.length || 0)
+        );
 
       default:
         return 0;
     }
 
   });
+}, [venues, favorites, sortBy, venueDeals]);
+
+  const currentPageVenues = useMemo(() => {
+  return sortedVenues.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+}, [sortedVenues, currentPage]);
+
+const currentPageVenueKey = useMemo(
+  () => currentPageVenues.map((venue) => String(venue.id)).join(","),
+  [currentPageVenues]
+);
+
+useEffect(() => {
+  if (currentPageVenues.length === 0) {
+    setVenueDeals({});
+    return;
+  }
+
+  const loadVenueDeals = async () => {
+    try {
+      const results = await Promise.all(
+        currentPageVenues.map(async (venue) => {
+          try {
+            const deals = await fetchVenueDeals(venue.id);
+
+            return [String(venue.id), deals] as const;
+          } catch (error) {
+            console.error(
+              `Failed to load deals for venue ${venue.id}:`,
+              error
+            );
+
+            return [String(venue.id), []] as const;
+          }
+        })
+      );
+
+      setVenueDeals(Object.fromEntries(results));
+    } catch (error) {
+      console.error("Failed to load venue deals:", error);
+      setVenueDeals({});
+    }
+  };
+
+  loadVenueDeals();
+}, [currentPageVenueKey]);
   const handleSearch = () => {
 
   // RESET NON-LOCATION FILTERS
@@ -1128,8 +1213,9 @@ const loadVenues = async () => {
                   key={venue.id}
                   venue={venue}
                   isPremiumMember={isPremiumMember}
-                  onFavorite={(id) => handleFavorite(Number(id))}
-                 isFavorited={favorites.includes(Number(venue.id))}
+                  onFavorite={(id) => handleFavorite(id)}
+                 isFavorited={favorites.includes(venue.id)}
+                 deals={venueDeals[String(venue.id)] || []}
                   onViewDetails={() => handleViewDetails(venue)}
                 />
               ))}

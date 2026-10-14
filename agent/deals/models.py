@@ -54,10 +54,10 @@ class Deal(Base):
     # Venue
     # -------------------------------------------------
 
-    venue_id: Mapped[int] = mapped_column(
-        Integer,
-        index=True,
-        nullable=False,
+    venue_id: Mapped[str] = mapped_column(
+    String(255),
+    nullable=False,
+    index=True
     )
 
     # -------------------------------------------------

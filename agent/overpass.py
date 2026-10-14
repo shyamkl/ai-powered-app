@@ -1,5 +1,6 @@
 import requests
 
+
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 HEADERS = {
@@ -13,7 +14,7 @@ def execute_query(query: str):
         OVERPASS_URL,
         data=query,
         headers=HEADERS,
-        timeout=15,
+        timeout=75,
     )
 
     print(response.status_code)
@@ -33,7 +34,7 @@ def fetch_nearby(lat, lon, radius=5000):
       way["amenity"~"restaurant|bar|pub|cafe|nightclub"](around:{radius},{lat},{lon});
       relation["amenity"~"restaurant|bar|pub|cafe|nightclub"](around:{radius},{lat},{lon});
     );
-    out center;
+    out center tags;
     """
 
     return execute_query(query)

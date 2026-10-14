@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer
-from database import Base
+from BACKEND.database import Base
 
 class Favorite(Base):
     __tablename__ = "favorites"

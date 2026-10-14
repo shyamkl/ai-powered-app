@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import {
     fetchReviews,
     createReview,
-    uploadVenueImage 
+    uploadVenueImage,
+    fetchVenueDeals
   } from '../services/api';
     
 interface VenueDetailsModalProps {
@@ -87,6 +88,7 @@ useEffect(() => {
   if (isOpen && venue?.id) {
 
     loadReviews();
+    loadDeals();
 
   } else {
 
@@ -95,6 +97,9 @@ useEffect(() => {
     setReviewComment("");
     setReviewRating(0);
     setReviewImage(null);
+
+    setDeals([]);
+    setDealError("");
 
   }
 
@@ -127,6 +132,35 @@ if (data.length > 0) {
     setReviewLoading(false);
   }
 };
+const loadDeals = async () => {
+  if (!venue) return;
+
+  try {
+    setDealLoading(true);
+    setDealError("");
+
+    console.log("LOADING DEALS FOR VENUE:", venue.id);
+
+    const data = await fetchVenueDeals(venue.id);
+
+    console.log("VENUE DEALS:", data);
+
+    setDeals(data);
+
+  } catch (error) {
+
+    console.error("Failed loading deals:", error);
+
+    setDealError("Failed to load deals");
+
+    setDeals([]);
+
+  } finally {
+
+    setDealLoading(false);
+
+  }
+};
   const [reservationData, setReservationData] = useState({
     name: '',
     email: '',
@@ -139,6 +173,10 @@ if (data.length > 0) {
   const [ratingError, setRatingError] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
 const [reviewLoading, setReviewLoading] = useState(false);
+
+const [deals, setDeals] = useState<any[]>([]);
+const [dealLoading, setDealLoading] = useState(false);
+const [dealError, setDealError] = useState("");
 
 const [reviewName, setReviewName] = useState("");
 const [reviewComment, setReviewComment] = useState("");
@@ -383,14 +421,170 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
           {activeTab === 'details' && (
             <div className="space-y-6">
               <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-2xl border border-blue-100">
-                <h3 className="text-xl mb-2">Happy Hour Special</h3>
-                <p className="text-2xl text-blue-600 mb-2">{venue.deal}</p>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <Clock className="w-5 h-5" />
-                  <span>{venue.happyHour}</span>
-                </div>
-              </div>
 
+                <h3 className="text-xl font-semibold mb-4">
+                  🔥 Current Deals
+                </h3>
+
+                {dealLoading ? (
+
+                  <p className="text-gray-600">
+                    Loading deals...
+                  </p>
+
+                ) : dealError ? (
+
+                  <p className="text-red-500">
+                    {dealError}
+                  </p>
+
+                ) : deals.length === 0 ? (
+
+                  <div className="text-gray-600">
+
+                    <p className="mb-2">
+                      No verified deals available for this venue.
+                    </p>
+
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Clock className="w-4 h-4" />
+                      <span>{venue.happyHour || "Check venue for current timings"}</span>
+                    </div>
+
+                  </div>
+
+                ) : (
+
+                  <div className="space-y-4">
+
+                    {deals.map((deal) => (
+
+                      <div
+                        key={deal.id}
+                        className="bg-white rounded-xl p-4 shadow-sm border border-blue-100"
+                      >
+
+                        <div className="flex items-start justify-between gap-4">
+
+                          <div>
+
+                            <h4 className="text-lg font-semibold text-gray-900">
+                              {deal.title}
+                            </h4>
+
+                            {deal.description && (
+                              <p className="text-gray-600 mt-1">
+                                {deal.description}
+                              </p>
+                            )}
+
+                          </div>
+
+                          {deal.discount_value && (
+                            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap">
+                              {deal.discount_value}
+                              {deal.discount_unit || ""}
+                            </span>
+                          )}
+
+                        </div>
+
+
+                        <div className="flex flex-wrap gap-2 mt-3">
+
+                          {deal.deal_type && (
+                            <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
+                              {deal.deal_type}
+                            </span>
+                          )}
+
+                          {deal.category && (
+                            <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+                              {deal.category}
+                            </span>
+                          )}
+
+                        </div>
+
+
+                        {deal.items && deal.items.length > 0 && (
+                          <div className="mt-3">
+
+                            <p className="text-sm font-medium text-gray-700">
+                              Items
+                            </p>
+
+                            <div className="flex flex-wrap gap-2 mt-1">
+
+                              {deal.items.map((item: string, index: number) => (
+                                <span
+                                  key={index}
+                                  className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded"
+                                >
+                                  {item}
+                                </span>
+                              ))}
+
+                            </div>
+
+                          </div>
+                        )}
+
+
+                        {deal.days && deal.days.length > 0 && (
+                          <div className="mt-3">
+
+                            <p className="text-sm font-medium text-gray-700">
+                              Days
+                            </p>
+
+                            <p className="text-sm text-gray-600">
+                              {deal.days.join(", ")}
+                            </p>
+
+                          </div>
+                        )}
+
+
+                        {(deal.start_time || deal.end_time) && (
+                          <div className="flex items-center gap-2 text-gray-600 mt-3">
+
+                            <Clock className="w-4 h-4" />
+
+                            <span>
+                              {deal.start_time || ""}
+                              {deal.start_time && deal.end_time ? " – " : ""}
+                              {deal.end_time || ""}
+                            </span>
+
+                          </div>
+                        )}
+
+
+                        {deal.source_url && (
+                          <div className="mt-3">
+
+                            <a
+                              href={deal.source_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:underline"
+                            >
+                              View source
+                            </a>
+
+                          </div>
+                        )}
+
+                      </div>
+
+                    ))}
+
+                  </div>
+
+                )}
+
+              </div>
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">

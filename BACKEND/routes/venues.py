@@ -1,7 +1,7 @@
 from sqlalchemy import func
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from models.review import Review
+from  BACKEND.models.review import Review
 import os
 import uuid
 
@@ -13,11 +13,11 @@ from fastapi import (
 
 
 
-from database import get_db
+from  BACKEND.database import get_db
 
 
-from database import SessionLocal
-from models.venue import Venue
+from  BACKEND.database import SessionLocal
+from  BACKEND.models.venue import Venue
 from agent.providers.provider_manager import ProviderManager
 
 

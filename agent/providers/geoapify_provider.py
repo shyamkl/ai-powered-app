@@ -3,8 +3,6 @@ import requests
 from .base_provider import BaseProvider
 from ..models.venue import Venue
 from ..config import GEOAPIFY_API_KEY
-
-
 class GeoapifyProvider(BaseProvider):
     @property
     def provider_name(self):
@@ -27,7 +25,6 @@ class GeoapifyProvider(BaseProvider):
             "limit": 500,
             "apiKey": GEOAPIFY_API_KEY
         }
-
         response = requests.get(
             self.URL,
             params=params,
@@ -77,6 +74,19 @@ class GeoapifyProvider(BaseProvider):
                 "category": category,
                 "address": props.get("formatted", ""),
                 "city": props.get("city", ""),
+
+                "country": (
+                    props.get("country_code")
+                    or props.get("country")
+                    or ""
+                ),
+
+                "website": (
+                    props.get("website")
+                    or props.get("contact:website")
+                    or ""
+                ),
+
                 "wikidata": props.get("wikidata"),
                 "image": props.get("image"),
                 "wikimedia_commons":  props.get("wikimedia_commons"),
