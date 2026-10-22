@@ -5,15 +5,7 @@ from agent.config import AGENT_DATABASE_URL
 
 DATABASE_URL = AGENT_DATABASE_URL
 
-if not DATABASE_URL:
-    raise RuntimeError(
-        "AGENT_DATABASE_URL is missing. Configure it in the project-root .env file."
-    )
-
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True
-)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True) if DATABASE_URL else None
 
 
 class DealStore:
@@ -23,6 +15,9 @@ class DealStore:
     # -------------------------------------------------
 
     def save_deal(self, deal):
+        if engine is None:
+            return None
+
         """
         Save a normalized deal into ai_deals.
 
@@ -234,6 +229,9 @@ class DealStore:
         status="success",
         verified_at=None
     ):
+        if engine is None:
+            return None
+
         """
         Save a crawl/verification event into
         ai_deal_source_events.
@@ -290,6 +288,9 @@ class DealStore:
         venue_id,
         active_only=True
     ):
+        if engine is None:
+            return []
+
         """
         Return deals belonging to a venue.
         """
@@ -353,6 +354,9 @@ class DealStore:
     # -------------------------------------------------
 
     def get_deal(self, deal_id):
+        if engine is None:
+            return None
+
 
         with engine.begin() as conn:
 
@@ -378,6 +382,9 @@ class DealStore:
     # -------------------------------------------------
 
     def deactivate_deal(self, deal_id):
+        if engine is None:
+            return None
+
 
         with engine.begin() as conn:
 
@@ -406,6 +413,9 @@ class DealStore:
         source_url,
         current_hashes
     ):
+        if engine is None:
+            return None
+
         """
         Deactivate deals from a source that were not
         found during the latest extraction.
@@ -458,6 +468,9 @@ class DealStore:
     # -------------------------------------------------
 
     def count(self):
+        if engine is None:
+            return 0
+
 
         with engine.begin() as conn:
 

@@ -22,11 +22,13 @@ class Review(Base):
         TIMESTAMP,
         server_default=func.now()
     )
-    class Favorite(Base):
+class Favorite(Base):
     __tablename__ = "favorites"
 
     id = Column(Integer, primary_key=True, index=True)
     venue_id = Column(Integer, nullable=False)
+
+
 class Venue(Base):
     __tablename__ = "venues"
    
@@ -38,8 +40,8 @@ class Venue(Base):
     lat = Column(Float)
     lon = Column(Float)
     address = Column(Text)
-    country = Column(String(100), nullable=True),
-    state = Column(String(100), nullable=True),
+    country = Column(String(100), nullable=True)
+    state = Column(String(100), nullable=True)
     city = Column(String(100), nullable=True)
     
     # Business info

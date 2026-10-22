@@ -169,38 +169,27 @@ export const sendChatMessage = async (message: string) => {
 // ======================
 
 export const addFavorite = async (venueId: number) => {
+  const response = await fetch(`${API_BASE_URL}/favorites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ venue_id: venueId }),
+  });
 
-  const response = await fetch(
-    `${API_BASE_URL}/favorites/${venueId}`,
-    {
-      method: "POST",
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("Failed to add favorite");
-  }
-
+  if (!response.ok) throw new Error("Failed to update favorite");
   return response.json();
 };
-
 
 export const removeFavorite = async (venueId: number) => {
+  // The backend exposes a toggle endpoint, so posting an existing favorite removes it.
+  const response = await fetch(`${API_BASE_URL}/favorites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ venue_id: venueId }),
+  });
 
-  const response = await fetch(
-    `${API_BASE_URL}/favorites/${venueId}`,
-    {
-      method: "DELETE",
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("Failed to remove favorite");
-  }
-
+  if (!response.ok) throw new Error("Failed to update favorite");
   return response.json();
 };
-
 
 export const fetchFavorites = async () => {
 

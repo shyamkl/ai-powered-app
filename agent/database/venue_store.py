@@ -6,19 +6,12 @@ from agent.config import AGENT_DATABASE_URL
 
 DATABASE_URL = AGENT_DATABASE_URL
 
-if not DATABASE_URL:
-    raise RuntimeError(
-        "AGENT_DATABASE_URL is missing. Configure it in the project-root .env file."
-    )
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True) if DATABASE_URL else None
 class VenueStore:
 
     def save_many(self, venues):
 
-        if not venues:
+        if not venues or engine is None:
             return
 
         with engine.begin() as conn:
@@ -112,6 +105,9 @@ class VenueStore:
                 )
     def count(self):
 
+        if engine is None:
+            return 0
+
         with engine.begin() as conn:
 
             return conn.execute(
@@ -130,6 +126,9 @@ class VenueStore:
         lon,
         radius=2000,
     ):
+        if engine is None:
+            return []
+
         print("VENUE STORE RADIUS =", radius)
         print("LAT =", lat)
         print("LON =", lon)
@@ -216,6 +215,9 @@ class VenueStore:
     
     def last_update(self, city):
 
+        if engine is None:
+            return None
+
         with engine.begin() as conn:
 
             result = conn.execute(
@@ -240,7 +242,7 @@ class VenueStore:
 
     def update_website(self, venue_id, website):
 
-        if not venue_id or not website:
+        if engine is None or not venue_id or not website:
             return
 
         with engine.begin() as conn:

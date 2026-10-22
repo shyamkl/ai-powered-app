@@ -5,6 +5,7 @@ from .geoapify_provider import GeoapifyProvider
 from .overpass_provider import OverpassProvider
 
 from ..config import (
+    GEOAPIFY_API_KEY,
     MAX_PARALLEL_PROVIDERS,
     MAX_VENUES_PER_SEARCH,
 )
@@ -29,10 +30,9 @@ class ProviderManager:
 
     def __init__(self):
 
-        self.providers = [
-            GeoapifyProvider(),
-            OverpassProvider(),
-        ]
+        self.providers = [OverpassProvider()]
+        if GEOAPIFY_API_KEY:
+            self.providers.insert(0, GeoapifyProvider())
 
         self.cache = CacheManager()
 
@@ -120,6 +120,12 @@ class ProviderManager:
 
             return []
 
+    def log_search(self, **values):
+        try:
+            self.logger.log(**values)
+        except Exception as error:
+            print("Search logging unavailable:", error)
+
     # ---------------------------------------------------
 
     def get_ranked_providers(self):
@@ -173,7 +179,7 @@ class ProviderManager:
 
             elapsed = time.time() - total_start
 
-            self.logger.log(
+            self.log_search(
                 latitude=lat,
                 longitude=lon,
                 radius=radius,
@@ -233,7 +239,7 @@ class ProviderManager:
 
             print("Cache hit")
 
-            self.logger.log(
+            self.log_search(
                 latitude=lat,
                 longitude=lon,
                 radius=radius,
@@ -347,31 +353,14 @@ class ProviderManager:
             if not is_valid_category(category):
                 continue
 
-            image = None
-
-            if not venue.get("image_url"):
-                image = self.image_service.get_image(venue)
-                venue["image_url"] = image
-            else:
-                image = venue["image_url"]
-
-
-            venue["image_source"] = (
-                "pixabay"
-                if image and (
-                    image.startswith("http")
-                    or image.startswith("/static/images")
-                )
-                else "default"
-            )
+            # Keep venue discovery responsive. Use an image already supplied by
+            # the provider and let the frontend fallback handle missing photos;
+            # remote photo enrichment should not block the whole venue response.
+            image = venue.get("image_url") or venue.get("image")
+            venue["image_url"] = image
+            venue["image_source"] = "provider" if image else "default"
 
             venue["score"] = self.scorer.score(venue)
-
-            print(
-                venue["name"],
-                "->",
-                venue["image_url"]
-            )
 
             scored.append(venue)
 
@@ -413,7 +402,7 @@ class ProviderManager:
 
         elapsed = time.time() - total_start
 
-        self.logger.log(
+        self.log_search(
             latitude=lat,
             longitude=lon,
             radius=radius,

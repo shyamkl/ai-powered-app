@@ -15,56 +15,42 @@ import { reverseGeocode } from "./services/geocoding";
 export default function App() {
   const [mapSearch, setMapSearch] = useState("");
   const searchLocation = async () => {
+    const query = mapSearch.trim();
+    if (!query) return;
 
-  if (!mapSearch.trim()) return;
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      if (!response.ok) throw new Error("Location search failed");
 
-  try {
+      const results: Array<{ lat: string; lon: string; display_name: string }> =
+        await response.json();
+      const result = results[0];
+      if (!result) {
+        setError("No matching location found. Try a nearby city or area.");
+        return;
+      }
 
-    const location = await reverseGeocode(lat,lon);
-
-    console.log(
-        "Location source:",
-        location.source
-    );
-
-setUserLocation(location.city);
-
-setFilters(prev => ({
-    ...prev,
-    city: location.city,
-    state: location.state,
-    country: location.country
-}));
-console.log("Updated Filters:", {
-
-    country: location.country,
-
-    state: location.state,
-
-    city: location.city
-
-});
-localStorage.setItem(
-    "userCity",
-    location.city
-);
-
-    if (data.length > 0) {
-
-      setUserCoordinates({
-        lat: parseFloat(data[0].lat),
-        lon: parseFloat(data[0].lon)
-      });
-
-      setUserLocation(data[0].display_name);
-
+      const lat = Number(result.lat);
+      const lon = Number(result.lon);
+      const location = await reverseGeocode(lat, lon);
+      setUserCoordinates({ lat, lon });
+      setUserLocation(location.city || result.display_name);
+      setFilters(prev => ({
+        ...prev,
+        city: location.city,
+        state: location.state,
+        country: location.country,
+      }));
+      localStorage.setItem("userCity", location.city || result.display_name);
+      setError("");
+    } catch (err) {
+      console.error("Location search failed:", err);
+      setError("Unable to search for that location. Please try again.");
     }
-
-  } catch (err) {
-    console.error(err);
-  }
-
-};
+  };
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [loginType, setLoginType] = useState<'customer' | 'vendor'>('customer');
@@ -365,27 +351,6 @@ useEffect(() => {
   }
    requestCurrentLocation();
 }, []);
-const getCurrentPosition = () => {
-
-  return new Promise<GeolocationPosition>((resolve, reject) => {
-
-    // navigator.geolocation.getCurrentPosition(
-
-    //   resolve,
-
-    //   reject,
-
-    //   {
-    //     enableHighAccuracy: true,
-    //     timeout: 10000,
-    //     maximumAge: 0
-    //   }
-
-    // );
-
-  });
-
-};
 const requestCurrentLocation = async () => {
 
     if (!navigator.geolocation) {
@@ -486,10 +451,11 @@ const requestCurrentLocation = async () => {
             }
 
             if (error.code === error.TIMEOUT) {
-
-                setUserLocation("Location Timed Out");
+                // Keep the permission/location flow recoverable if the browser
+                // reports a device timeout after the user has granted access.
+                setUserLocation("Retrying location detection...");
+                window.setTimeout(requestCurrentLocation, 1000);
                 return;
-
             }
 
             setUserLocation("Location Not Available");
@@ -497,11 +463,10 @@ const requestCurrentLocation = async () => {
         },
 
         {
-
-            enableHighAccuracy: true,
-            timeout: 10000,
+            // Leave timeout unset: the browser may wait for the user to answer
+            // its permission prompt before it can begin locating the device.
+            enableHighAccuracy: false,
             maximumAge: 0
-
         }
 
     );
@@ -597,7 +562,7 @@ const loadFavorites = async () => {
 
     console.log("FAVORITES:", data);
 
-    setFavorites(data.map((item: any) => item.venue_id));
+    setFavorites(Array.isArray(data) ? data : []);
 
   } catch (error) {
 
@@ -607,41 +572,22 @@ const loadFavorites = async () => {
 
 };
 const handleFavorite = async (venueId: string | number) => {
-
   try {
+    const response = await fetch("http://127.0.0.1:8000/favorites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ venue_id: Number(venueId) }),
+    });
+    if (!response.ok) throw new Error("Failed to update favorite");
 
-    const isAlreadyFavorite = favorites.includes(venueId);
-    console.log("CITY FILTER SENT TO API:", filters.city);
-    console.log("ALL FILTERS:", filters);
-    const response = await fetch(
-      `http://127.0.0.1:8000/favorites/${venueId}`,
-      {
-        method: isAlreadyFavorite ? "DELETE" : "POST",
-      }
+    const result: { favorited: boolean } = await response.json();
+    setFavorites(prev => result.favorited
+      ? (prev.includes(venueId) ? prev : [...prev, venueId])
+      : prev.filter(id => id !== venueId)
     );
-
-    const data = await response.json();
-
-    console.log(data);
-
-    if (isAlreadyFavorite) {
-
-      setFavorites(prev =>
-        prev.filter(id => id !== venueId)
-      );
-
-    } else {
-
-      setFavorites(prev => [...prev, venueId]);
-
-    }
-
   } catch (error) {
-
-    console.error(error);
-
+    console.error("Failed to update favorite:", error);
   }
-
 };
 
 const loadVenues = async () => {
