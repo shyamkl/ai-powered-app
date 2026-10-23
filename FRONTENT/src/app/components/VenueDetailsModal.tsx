@@ -6,6 +6,8 @@ import {
     uploadVenueImage,
     fetchVenueDeals,
     apiUrl,
+    uniqueVenueImageBackupUrl,
+    uniqueVenueImageUrl,
   } from '../services/api';
     
 interface VenueDetailsModalProps {
@@ -278,16 +280,19 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
         {/* Hero Image */}
         <div className="relative h-64 overflow-hidden">
           <img
-  src={
-    venue.local_image
-      ? apiUrl(venue.local_image)
-      : venue.image_url
-      ? venue.image_url.replace(/^http:\/\//i, "https://")
-      : "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800"
-  }
-  alt={venue.name}
-  className="w-full h-full object-cover"
-/>
+            src={venue.image || uniqueVenueImageUrl(venue)}
+            alt={venue.name}
+            className="w-full h-full object-cover"
+            onError={(event) => {
+              const image = event.currentTarget;
+              const backup = uniqueVenueImageBackupUrl(venue);
+              if (image.src !== backup) {
+                image.src = backup;
+              } else {
+                image.onerror = null;
+              }
+            }}
+          />
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <div className="absolute bottom-6 left-6 text-white">

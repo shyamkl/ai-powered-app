@@ -7,7 +7,7 @@ import { AIChatbot } from './components/AIChatbot';
 import { LoginModal } from './components/LoginModal';
 import { PremiumModal } from './components/PremiumModal';
 import { VenueDetailsModal } from './components/VenueDetailsModal';
-import { API_BASE_URL, apiUrl, fetchVenues, Venue, fetchFavorites, fetchVenueDeals } from './services/api';
+import { API_BASE_URL, apiUrl, fetchVenues, Venue, fetchFavorites, fetchVenueDeals, uniqueVenueImageUrl } from './services/api';
 import VenueMap from './components/venueMap';
 import 'leaflet/dist/leaflet.css';
 import { reverseGeocode } from "./services/geocoding";
@@ -623,7 +623,22 @@ const loadVenues = async () => {
   page: currentPage,
   limit: ITEMS_PER_PAGE,
 });
-    const transformedData = data.map((venue: any) => ({
+    const seenImages = new Set<string>();
+    const transformedData = data.map((venue: any) => {
+      const suppliedImage = venue.local_image
+        ? apiUrl(venue.local_image)
+        : venue.image_url || venue.image;
+      const normalizedImage = suppliedImage
+        ? suppliedImage.startsWith("/")
+          ? apiUrl(suppliedImage)
+          : suppliedImage.replace(/^http:\/\//i, "https://")
+        : "";
+      const image = normalizedImage && !seenImages.has(normalizedImage)
+        ? normalizedImage
+        : uniqueVenueImageUrl(venue);
+      seenImages.add(image);
+
+      return ({
   id: venue.id,
   name: venue.name,
   lat: venue.lat,
@@ -632,14 +647,9 @@ const loadVenues = async () => {
   type: (venue.category || "Venue").toLowerCase(),
   area: venue.area || "",
 
-  image:
-    venue.local_image
-      ? apiUrl(venue.local_image)
-      : venue.image_url?.startsWith("/")
-      ? apiUrl(venue.image_url)
-      : venue.image_url,
+  image,
 
-  image_url: venue.image_url,
+  image_url: image,
   local_image: venue.local_image,
 
   rating:
@@ -669,7 +679,8 @@ const loadVenues = async () => {
   country: venue.country || "",
   state: venue.state || "",
   city: venue.city || "",
-}));
+});
+    });
 
     setVenues(transformedData);
     if (transformedData.length === 0) {

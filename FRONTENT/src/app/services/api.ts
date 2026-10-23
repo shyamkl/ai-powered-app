@@ -6,6 +6,44 @@ export const API_BASE_URL = (
 export const apiUrl = (path: string) =>
   `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
 
+type VenueImageSeed = {
+  id?: string | number;
+  name?: string;
+  category?: string;
+  type?: string;
+};
+
+const stableVenueImageSeed = (venue: VenueImageSeed) => {
+  const value = `${venue.id ?? ""}:${venue.name ?? "venue"}`;
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+};
+
+// LoremFlickr returns a photo matching these tags. The stable per-venue lock
+// keeps the image consistent across renders while giving each venue a distinct
+// photo request instead of reusing one global fallback image.
+export const uniqueVenueImageUrl = (venue: VenueImageSeed) => {
+  const category = `${venue.category ?? venue.type ?? ""} ${venue.name ?? ""}`.toLowerCase();
+  const tags = category.includes("cafe") || category.includes("coffee")
+    ? "cafe,coffee"
+    : category.includes("bar") || category.includes("pub")
+    ? "bar,cocktail"
+    : category.includes("bakery") || category.includes("dessert")
+    ? "bakery,dessert"
+    : "restaurant,food";
+
+  return `https://loremflickr.com/800/600/${tags}?lock=${stableVenueImageSeed(venue)}`;
+};
+
+export const uniqueVenueImageBackupUrl = (venue: VenueImageSeed) =>
+  `https://picsum.photos/seed/${stableVenueImageSeed(venue)}/800/600`;
+
 export interface Venue {
   id: string | number;
   name: string;

@@ -1,5 +1,5 @@
 import { MapPin, Clock, Star, Heart, TrendingUp } from 'lucide-react';
-import { apiUrl, uploadVenueImage } from "../services/api";
+import { uniqueVenueImageBackupUrl, uniqueVenueImageUrl } from "../services/api";
 
 interface VenueCardProps {
   venue: {
@@ -42,6 +42,9 @@ export function VenueCard({
   onViewDetails,
    deals,
 }: VenueCardProps) {
+  const fallbackImage = uniqueVenueImageUrl(venue);
+  const backupImage = uniqueVenueImageBackupUrl(venue);
+
   console.log(
     "CARD",
     venue.name,
@@ -85,25 +88,25 @@ export function VenueCard({
   }}
 /> */}
 <img
-  src={
-  venue.image ||
-  "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800"
-  }
+  src={venue.image || fallbackImage}
   alt={venue.name}
   className="w-full h-48 object-cover rounded"
   onError={(e) => {
   const target = e.currentTarget;
 
-  if (venue.image_url && target.src.includes("/uploads/")) {
-    target.src = venue.image_url.startsWith("/")
-      ? apiUrl(venue.image_url)
-      : venue.image_url.replace(/^http:\/\//i, "https://");
-    return;
-  }
+    if (!target.dataset.uniqueFallbackApplied && target.src !== fallbackImage) {
+      target.dataset.uniqueFallbackApplied = "true";
+      target.src = fallbackImage;
+      return;
+    }
 
-  target.onerror = null;
-  target.src =
-    "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800";
+    if (!target.dataset.uniqueBackupApplied && target.src !== backupImage) {
+      target.dataset.uniqueBackupApplied = "true";
+      target.src = backupImage;
+      return;
+    }
+
+    target.onerror = null;
   }}
 />
         {/* TOP RIGHT BUTTONS */}
