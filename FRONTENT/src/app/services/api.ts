@@ -1,4 +1,10 @@
-const API_BASE_URL = "http://127.0.0.1:8000";
+export const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.DEV ? "http://127.0.0.1:8000" : "/api")
+).replace(/\/$/, "");
+
+export const apiUrl = (path: string) =>
+  `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
 
 export interface Venue {
   id: string | number;
@@ -218,7 +224,7 @@ export const uploadVenueImage = async (
   formData.append("image", imageFile);
 
   const response = await fetch(
-    `http://127.0.0.1:8000/venues/${venueId}/upload-image`,
+    `${API_BASE_URL}/venues/${venueId}/upload-image`,
     {
       method: "POST",
       body: formData,

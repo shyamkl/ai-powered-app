@@ -7,7 +7,7 @@ import { AIChatbot } from './components/AIChatbot';
 import { LoginModal } from './components/LoginModal';
 import { PremiumModal } from './components/PremiumModal';
 import { VenueDetailsModal } from './components/VenueDetailsModal';
-import { fetchVenues, Venue, fetchFavorites, fetchVenueDeals } from './services/api';
+import { API_BASE_URL, apiUrl, fetchVenues, Venue, fetchFavorites, fetchVenueDeals } from './services/api';
 import VenueMap from './components/venueMap';
 import 'leaflet/dist/leaflet.css';
 import { reverseGeocode } from "./services/geocoding";
@@ -555,7 +555,7 @@ const loadFavorites = async () => {
   try {
 
     const response = await fetch(
-      "http://127.0.0.1:8000/favorites"
+      apiUrl("favorites")
     );
 
     const data = await response.json();
@@ -573,7 +573,7 @@ const loadFavorites = async () => {
 };
 const handleFavorite = async (venueId: string | number) => {
   try {
-    const response = await fetch("http://127.0.0.1:8000/favorites", {
+    const response = await fetch(apiUrl("favorites"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ venue_id: Number(venueId) }),
@@ -634,9 +634,9 @@ const loadVenues = async () => {
 
   image:
     venue.local_image
-      ? `http://127.0.0.1:8000${venue.local_image}`
+      ? apiUrl(venue.local_image)
       : venue.image_url?.startsWith("/")
-      ? `http://127.0.0.1:8000${venue.image_url}`
+      ? apiUrl(venue.image_url)
       : venue.image_url,
 
   image_url: venue.image_url,
@@ -747,7 +747,7 @@ const loadVenues = async () => {
   try {
 
     const response = await fetch(
-     `http://127.0.0.1:8000/venues/${venue.id}/image`,
+     `${API_BASE_URL}/venues/${venue.id}/image`,
       {
         method: "PUT",
         body: formData,

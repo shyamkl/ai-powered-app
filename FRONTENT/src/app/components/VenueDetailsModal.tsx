@@ -4,7 +4,8 @@ import {
     fetchReviews,
     createReview,
     uploadVenueImage,
-    fetchVenueDeals
+    fetchVenueDeals,
+    apiUrl,
   } from '../services/api';
     
 interface VenueDetailsModalProps {
@@ -66,7 +67,7 @@ const handleImageUpload = async (
     // =========================
 
     const updatedImage =
-      `http://127.0.0.1:8000/${response.local_image}`;
+      apiUrl(response.local_image);
 
     // update current venue object
     venue.image = updatedImage;
@@ -279,10 +280,10 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
           <img
   src={
     venue.local_image
-      ? `http://127.0.0.1:8000/${venue.local_image}`
+      ? apiUrl(venue.local_image)
       : venue.image_url
       ? venue.image_url.replace(/^http:\/\//i, "https://")
-      : "http://127.0.0.1:8000/photo-1514933651103-005eec06c04b?w=800"
+      : "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800"
   }
   alt={venue.name}
   className="w-full h-full object-cover"
@@ -398,7 +399,7 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
           {review.photos.map((photo: string, index: number) => (
             <img
               key={index}
-              src={`http://127.0.0.1:8000/${photo}`}
+              src={apiUrl(photo)}
               alt=""
               className="w-24 h-24 object-cover rounded"
             />
@@ -878,7 +879,7 @@ const [reviewImage, setReviewImage] = useState<File | null>(null);
 
         {review.image_url && (
           <img
-            src={`http://127.0.0.1:8000/${review.image_url}`}
+            src={apiUrl(review.image_url)}
             alt="review"
             className="w-40 mt-3 rounded-lg"
           />

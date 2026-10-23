@@ -1,5 +1,5 @@
 import { MapPin, Clock, Star, Heart, TrendingUp } from 'lucide-react';
-import { uploadVenueImage } from "../api";
+import { apiUrl, uploadVenueImage } from "../services/api";
 
 interface VenueCardProps {
   venue: {
@@ -63,7 +63,7 @@ export function VenueCard({
   src={
     // USER UPLOADED IMAGE
     venue.local_image
-      ? `http://127.0.0.1:8000/api${venue.local_image}`
+      ? apiUrl(venue.local_image)
 
       // EXISTING DATABASE IMAGE
       : venue.image_url
@@ -96,7 +96,7 @@ export function VenueCard({
 
   if (venue.image_url && target.src.includes("/uploads/")) {
     target.src = venue.image_url.startsWith("/")
-      ? `http://127.0.0.1:8000${venue.image_url}`
+      ? apiUrl(venue.image_url)
       : venue.image_url.replace(/^http:\/\//i, "https://");
     return;
   }

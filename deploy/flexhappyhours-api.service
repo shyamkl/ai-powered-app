@@ -1,0 +1,17 @@
+[Unit]
+Description=Flex Happy Hours FastAPI application
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/flexhappyhours
+EnvironmentFile=/opt/flexhappyhours/.env
+ExecStart=/opt/flexhappyhours/.venv/bin/uvicorn BACKEND.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
