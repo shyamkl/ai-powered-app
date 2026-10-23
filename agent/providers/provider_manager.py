@@ -148,11 +148,17 @@ class ProviderManager:
         # DATABASE CACHE
         # --------------------------------------------------
 
-        cached = self.store.nearby(
-            lat,
-            lon,
-            radius = 5000
-        )
+        try:
+            cached = self.store.nearby(
+                lat,
+                lon,
+                radius=5000
+            )
+        except Exception as error:
+            # The live provider search must not depend on optional MySQL cache
+            # credentials or availability.
+            print("Database venue cache unavailable:", error)
+            cached = []
 
         if cached:
 
@@ -213,7 +219,10 @@ class ProviderManager:
                     else:
                         venue["image_source"] = "default"
 
-            self.store.save_many(cached)
+            try:
+                self.store.save_many(cached)
+            except Exception as error:
+                print("Unable to refresh database venue cache:", error)
             print("AFTER SAVE:")
             for v in cached[:5]:
                 print(
@@ -377,13 +386,15 @@ class ProviderManager:
         needs_save = any(not v.get("id") for v in clean)
 
         if needs_save:
-            self.store.save_many(clean)
+            try:
+                self.store.save_many(clean)
+            except Exception as error:
+                print("Unable to save live venues to database cache:", error)
 
-        print(
-            "Database now contains",
-            self.store.count(),
-            "venues"
-        )
+        try:
+            print("Database now contains", self.store.count(), "venues")
+        except Exception as error:
+            print("Database venue count unavailable:", error)
 
         # --------------------------------------------------
         # SAVE TO CACHE
